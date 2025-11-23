@@ -1,14 +1,14 @@
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { type DefaultSession, type NextAuthConfig } from "next-auth";
-import DiscordProvider from "next-auth/providers/discord";
+import { DrizzleAdapter } from "@auth/drizzle-adapter"
+import { type DefaultSession, type NextAuthConfig } from "next-auth"
+import Google from "next-auth/providers/google"
 
-import { db } from "~/server/db";
+import { db } from "~/server/db"
 import {
   accounts,
   sessions,
   users,
   verificationTokens,
-} from "~/server/db/schema";
+} from "~/server/db/schema"
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -19,10 +19,8 @@ import {
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
-      id: string;
-      // ...other properties
-      // role: UserRole;
-    } & DefaultSession["user"];
+      id: string
+    } & DefaultSession["user"]
   }
 
   // interface User {
@@ -38,16 +36,7 @@ declare module "next-auth" {
  */
 export const authConfig = {
   providers: [
-    DiscordProvider,
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
+    Google,
   ],
   adapter: DrizzleAdapter(db, {
     usersTable: users,
@@ -63,5 +52,11 @@ export const authConfig = {
         id: user.id,
       },
     }),
+
+    // new bit
+    async redirect({ url, baseUrl }) {
+      // Always send the user to the root after auth
+      return baseUrl
+    },
   },
-} satisfies NextAuthConfig;
+} satisfies NextAuthConfig

@@ -1,6 +1,149 @@
 @import "tailwindcss";
 
+/* 1. Tailwind config in CSS */
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  /* fonts */
+  --font-sans: var(--font-family-body);
+  --font-mono: var(--font-family-mono);
+
+  /* map to Tailwind colour tokens so we get text-foreground-default etc */
+  --color-foreground-default: var(--colors-foreground-default);
+  --color-foreground-subtle: var(--colors-foreground-subtle);
+  --color-foreground-subtler: var(--colors-foreground-subtler);
+  --color-foreground-subtlest: var(--colors-foreground-subtlest);
+
+  --breakpoint-auth-lg: 52rem;
 }
+
+/* 2. Plain CSS variables like you are used to */
+:root {
+  /* your palette (fill these with the right hex values) */
+  --palette-neutral-black: #1d1f25;
+  --palette-gray-gray500: #61666f;
+  --palette-gray-gray400: #8e8f91;
+  --palette-gray-gray300: #c4c4c6;
+
+  /* Airtable style naming */
+  --colors-foreground-default: var(--palette-neutral-black);
+  --colors-foreground-subtle: var(--palette-gray-gray500);
+  --colors-foreground-subtler: var(--palette-gray-gray400);
+  --colors-foreground-subtlest: var(--palette-gray-gray300);
+
+  /* fonts from before */
+  --font-family-body: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+
+  --font-family-heading: 'Inter Display', -apple-system, system-ui,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell,
+    'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol';
+
+  --font-family-heading-legacy: 'GT Eesti Display', -apple-system, system-ui,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell,
+    'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol';
+
+  --font-family-mono: Menlo, Courier, monospace;
+
+  --font-size-body-xsmall: 9px;
+  --font-size-body-small: 11px;
+  --font-size-body-default: 13px;
+  --font-size-body-large: 15px;
+
+  --font-size-heading-xxsmall: 13px;
+  --font-size-heading-xsmall: 15px;
+  --font-size-heading-small: 17px;
+  --font-size-heading-default: 21px;
+  --font-size-heading-large: 23px;
+  --font-size-heading-xlarge: 27px;
+  --font-size-heading-xxlarge: 31px;
+  --font-size-heading-xxxlarge: 35px;
+
+  --line-height-3: 1.25;
+  --line-height-4: 1.5;
+}
+
+/* 3. Global defaults */
+@layer base {
+  body {
+    font-family: var(--font-family-body);
+    @apply bg-white text-foreground-default;
+  }
+
+  button {
+    cursor: pointer;
+  }
+  
+  button:disabled {
+    cursor: default;
+  }
+}
+
+@layer utilities {
+  /* Body text sizes */
+  .text-body-xsmall {
+    font-size: var(--font-size-body-xsmall);
+  }
+
+  .text-body-small {
+    font-size: var(--font-size-body-small);
+  }
+
+  .text-body-default {
+    font-size: var(--font-size-body-default);
+  }
+
+  .text-body-large {
+    font-size: var(--font-size-body-large);
+  }
+
+  /* Heading text sizes */
+  .text-heading-xxsmall {
+    font-size: var(--font-size-heading-xxsmall);
+  }
+
+  .text-heading-xsmall {
+    font-size: var(--font-size-heading-xsmall);
+  }
+
+  .text-heading-small {
+    font-size: var(--font-size-heading-small);
+  }
+
+  .text-heading-default {
+    font-size: var(--font-size-heading-default);
+  }
+
+  .text-heading-large {
+    font-size: var(--font-size-heading-large);
+  }
+
+  .text-heading-xlarge {
+    font-size: var(--font-size-heading-xlarge);
+  }
+
+  .text-heading-xxlarge {
+    font-size: var(--font-size-heading-xxlarge);
+  }
+
+  .text-heading-xxxlarge {
+    font-size: var(--font-size-heading-xxxlarge);
+  }
+
+  /* Line-height tokens */
+  .leading-3-token {
+    line-height: var(--line-height-3);
+  }
+
+  .leading-4-token {
+    line-height: var(--line-height-4);
+  }
+}
+
+/* 4. Line height tweak you already had
+label,
+p,
+span {
+  line-height: 1.25;
+} */

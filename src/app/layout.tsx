@@ -1,4 +1,5 @@
 import "~/styles/globals.css";
+import { SessionProvider } from "next-auth/react"
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
@@ -22,7 +23,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable}`}>
       <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <SessionProvider>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+        </SessionProvider>
       </body>
     </html>
   );
