@@ -54,7 +54,7 @@ export const authConfig = {
     }),
 
     // new bit
-    async redirect({ url, baseUrl }) {
+    async redirect({ baseUrl }) {
       // Always send the user to the root after auth
       return baseUrl
     },
