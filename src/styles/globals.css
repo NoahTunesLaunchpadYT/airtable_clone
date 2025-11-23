@@ -140,10 +140,3 @@
     line-height: var(--line-height-4);
   }
 }
-
-/* 4. Line height tweak you already had
-label,
-p,
-span {
-  line-height: 1.25;
-} */
