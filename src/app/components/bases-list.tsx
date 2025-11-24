@@ -1,10 +1,9 @@
-// ~/app/home/page.tsx
 "use client";
 
 import { api } from "~/trpc/react";
 import Link from "next/link";
 
-export default function HomePage() {
+export function BasesList() {
   const { data, isLoading } = api.base.getBases.useQuery();
   const utils = api.useContext();
 
@@ -15,11 +14,10 @@ export default function HomePage() {
       }
     });
 
-
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Your bases</h1>
+        <h2 className="text-xl font-semibold">Your bases</h2>
 
         <button
           type="button"
@@ -27,7 +25,9 @@ export default function HomePage() {
           disabled={isSeeding}
           className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
         >
-          {isSeeding ? "Creating demo base..." : "Create demo base (1000 rows)"}
+          {isSeeding
+            ? "Creating demo base..."
+            : "Create demo base (100 000 rows)"}
         </button>
       </div>
 

@@ -1,58 +1,69 @@
-// app/page.tsx
-import { auth } from "~/server/auth" // adjust path if needed
-import { SignOutButton } from "~/app/components/sign-out-button" // adjust path
-import Link from "next/link"
+import { auth } from "~/server/auth";
+import Link from "next/link";
+import { SignOutButton } from "~/app/components/sign-out-button";
+import { BasesList } from "~/app/components/bases-list";
 
 type SessionUser = {
-  id?: string
-  name?: string | null
-  email?: string | null
-  image?: string | null
-}
+  name?: string | null;
+  // we deliberately ignore id/email here so we never render them
+};
 
 export default async function HomePage() {
-  const session = await auth()
-  const user = session?.user as SessionUser | undefined
+  const session = await auth();
+  const user = session?.user as SessionUser | undefined;
+
+  const isSignedIn = !!session;
 
   return (
     <main className="min-h-screen bg-white flex items-center justify-center">
-      <div className="w-full max-w-[512px] px-4 text-[#1d1f25]">
-        {!session ? (
+      <div className="w-full max-w-3xl px-4 py-6 text-[#1d1f25] space-y-6">
+        {/* Auth status row */}
+        <div className="flex items-center justify-between border-b pb-4">
           <div>
-            <h1 className="text-2xl font-semibold mb-4">Not signed in</h1>
-            <p>
-              Go to{" "}
-              <Link href="/signup" className="text-blue-600 underline">
-                Sign up
-              </Link>{" "}
-              to sign in with Google.
-            </p>
+            {isSignedIn ? (
+              <>
+                <h1 className="text-2xl font-semibold">
+                  Hi{user?.name ? `, ${user.name}` : ""} 👋
+                </h1>
+                <p className="text-sm text-gray-600">
+                  You are signed in with Google.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl font-semibold">
+                  Not signed in
+                </h1>
+                <p className="text-sm text-gray-600">
+                  Sign in with Google to create and view bases.
+                </p>
+              </>
+            )}
           </div>
+
+          <div className="flex gap-2">
+            {!isSignedIn && (
+              <Link
+                href="/signup"
+                className="rounded bg-blue-600 px-3 py-1 text-sm text-white"
+              >
+                Sign in with Google
+              </Link>
+            )}
+
+            {isSignedIn && <SignOutButton />}
+          </div>
+        </div>
+
+        {/* Main content */}
+        {isSignedIn ? (
+          <BasesList />
         ) : (
-          <div>
-            <h1 className="text-2xl font-semibold mb-4">Signed in user</h1>
-
-            <p className="mb-2">
-              <span className="font-semibold">Name:</span> {user?.name}
-            </p>
-            <p className="mb-2">
-              <span className="font-semibold">Email:</span> {user?.email}
-            </p>
-            <p className="mb-4">
-              <span className="font-semibold">User id:</span> {user?.id}
-            </p>
-
-            <h2 className="text-xl font-semibold mb-2">Full session object</h2>
-            <pre className="text-xs bg-[#f5f5f7] p-3 rounded border border-gray-200 overflow-x-auto">
-              {JSON.stringify(session, null, 2)}
-            </pre>
-
-            <div className="mt-4">
-              <SignOutButton />
-            </div>
-          </div>
+          <p className="text-sm text-gray-700">
+            Once you sign in, your bases will appear here.
+          </p>
         )}
       </div>
     </main>
-  )
+  );
 }
