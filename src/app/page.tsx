@@ -1,6 +1,7 @@
 // app/page.tsx
 import { auth } from "~/server/auth" // adjust path if needed
 import { SignOutButton } from "~/app/components/sign-out-button" // adjust path
+import Link from "next/link"
 
 type SessionUser = {
   id?: string
@@ -21,9 +22,9 @@ export default async function HomePage() {
             <h1 className="text-2xl font-semibold mb-4">Not signed in</h1>
             <p>
               Go to{" "}
-              <a href="/signup" className="text-blue-600 underline">
+              <Link href="/signup" className="text-blue-600 underline">
                 Sign up
-              </a>{" "}
+              </Link>{" "}
               to sign in with Google.
             </p>
           </div>

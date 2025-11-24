@@ -106,3 +106,74 @@ export const verificationTokens = createTable(
   }),
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
+
+
+
+
+
+
+
+
+
+import {
+  pgEnum,
+  uuid,
+  text,
+  integer,
+  timestamp,
+  boolean,
+  jsonb
+} from "drizzle-orm/pg-core";
+
+export const columnTypeEnum = pgEnum("column_type", [
+  "text",
+  "number",
+  "singleSelect",
+  "attachment"
+]);
+
+export const bases = createTable("bases", {
+  id: uuid("id").primaryKey().defaultRandom(),    // Base ID
+  ownerId: text("owner_id").notNull(),            // User ID of the base owner
+  name: text("name").notNull(),                   // Base name
+  createdAt: timestamp("created_at").defaultNow() // Creation timestamp
+});
+
+export const tables = createTable("tables", {
+  id: uuid("id").primaryKey().defaultRandom(),                  // Table ID
+  baseId: uuid("base_id")                                       // Reference to the base
+    .notNull()
+    .references(() => bases.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),                                 // Table name
+  orderIndex: integer("order_index").notNull().default(0),      // Index within user's tables
+  createdAt: timestamp("created_at").defaultNow()               // Creation timestamp
+});
+
+export const columns = createTable("columns", {
+  id: uuid("id").primaryKey().defaultRandom(),                  // Column ID
+  tableId: uuid("table_id")                                     // Reference to the table
+    .notNull()
+    .references(() => tables.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),                                 // Column name
+  type: columnTypeEnum("type").notNull(),                       // Column type
+  orderIndex: integer("order_index").notNull().default(0),      // Order index for sorting within table
+  isHidden: boolean("is_hidden").notNull().default(false),      // Visibility flag
+  config: jsonb("config")                                       // Additional configuration
+});
+
+export const rows = createTable(
+  "rows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tableId: uuid("table_id")
+      .notNull()
+      .references(() => tables.id, { onDelete: "cascade" }),
+    index: integer("index").notNull(),
+    values: jsonb("values").notNull(),
+    createdAt: timestamp("created_at").defaultNow()
+  },
+  (table) => [
+    index("rows_table_index_idx").on(table.tableId, table.index),
+    index("rows_table_id_idx").on(table.tableId)
+  ]
+);
