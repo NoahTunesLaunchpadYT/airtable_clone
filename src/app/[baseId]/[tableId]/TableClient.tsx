@@ -1,4 +1,3 @@
-// app/[baseId]/[tableId]/TableClient.tsx
 "use client";
 
 import {
@@ -11,17 +10,15 @@ import {
   type ColumnFiltersState
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { api } from "~/trpc/react";
 
 type ColumnMeta = {
   id: string;
   name: string;
-  // keep it simple: DB returns string, and we can still compare to "number"
   type: string;
 };
 
-// shape returned from getRows (simplified)
 type RowData = {
   id: string;
   tableId: string;
@@ -46,6 +43,9 @@ type SortInput = {
   direction: "asc" | "desc";
 };
 
+const INDEX_COL_WIDTH = 40;   // px
+const DATA_COL_WIDTH = 530;   // px – change to 400 if you prefer
+
 export default function TableClient({
   tableId,
   columnsMeta
@@ -54,9 +54,8 @@ export default function TableClient({
   const [columnFilters, setColumnFilters] =
     useState<ColumnFiltersState>([]);
 
-  // we are not doing real pagination yet, so offset can just be 0
-  const offset = 0;
-  const limit = 1000;
+  const [startIndex, setStartIndex] = useState(0);
+  const windowSize = 100;
 
   const filtersForApi: FilterInput[] | undefined = useMemo(() => {
     if (columnFilters.length === 0) return undefined;
@@ -65,7 +64,7 @@ export default function TableClient({
       const colMeta = columnsMeta.find(c => c.id === f.id);
 
       const operator: FilterInput["operator"] =
-        colMeta?.type === "number" ? "gt" : "contains"; // placeholder default
+        colMeta?.type === "number" ? "gt" : "contains";
 
       const value = f.value as string;
 
@@ -91,16 +90,37 @@ export default function TableClient({
     });
   }, [sorting]);
 
-  const { data, isLoading } = api.table.getRows.useQuery({
+  const {
+    data,
+    isLoading,
+    isFetching
+  } = api.table.getRows.useQuery({
     tableId,
-    offset,
-    limit,
+    startIndex,
+    windowSize,
     filters: filtersForApi,
     sort: sortForApi
   });
 
-  // cast the data into our RowData shape (matches rows table)
-  const rowsData = (data ?? []) as RowData[];
+  const [lastData, setLastData] = useState<typeof data>();
+
+  useEffect(() => {
+    if (data !== undefined) {
+      setLastData(data);
+    }
+  }, [data]);
+
+  const effectiveData = data ?? lastData;
+
+  const rowsData = (effectiveData?.rows ?? []) as RowData[];
+
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    if (effectiveData?.totalCount !== undefined) {
+      setTotalCount(effectiveData.totalCount);
+    }
+  }, [effectiveData?.totalCount]);
 
   const columns = useMemo<ColumnDef<RowData>[]>(
     () =>
@@ -134,34 +154,74 @@ export default function TableClient({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // for now, totalRows is just what we have; you'll replace this with real total count when you do infinite scroll
-  const totalRows = rowsData.length;
-
   const rowVirtualizer = useVirtualizer({
-    count: totalRows || 0,
+    count: totalCount,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 32
+    estimateSize: () => 24 // ~24px row height
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
-  const first = virtualRows[0];
-  const last = virtualRows[virtualRows.length - 1];
+  const firstVirtual = virtualRows[0];
+  const lastVirtual = virtualRows[virtualRows.length - 1];
 
-  const paddingTop = first?.start ?? 0;
-  const paddingBottom = last
-    ? rowVirtualizer.getTotalSize() - last.end
+  const paddingTop = firstVirtual?.start ?? 0;
+  const paddingBottom = lastVirtual
+    ? rowVirtualizer.getTotalSize() - lastVirtual.end
     : 0;
+
+  useEffect(() => {
+    if (virtualRows.length === 0 || totalCount === 0) return;
+    if (isFetching) return;
+
+    const first = virtualRows[0];
+    const last = virtualRows[virtualRows.length - 1];
+
+    if (!first || !last) return;
+
+    const firstIndex = first.index;
+    const lastIndex = last.index;
+
+    const windowEnd = startIndex + windowSize;
+    const buffer = Math.floor(windowSize / 4);
+
+    const needShiftUp =
+      firstIndex < startIndex + buffer && startIndex > 0;
+
+    const needShiftDown =
+      lastIndex > windowEnd - buffer && windowEnd < totalCount;
+
+    if (!needShiftUp && !needShiftDown) {
+      return;
+    }
+
+    const visibleCenter = Math.floor((firstIndex + lastIndex) / 2);
+    let newStart = visibleCenter - Math.floor(windowSize / 2);
+
+    if (newStart < 0) newStart = 0;
+    const maxStart = Math.max(0, totalCount - windowSize);
+    if (newStart > maxStart) newStart = maxStart;
+
+    if (newStart !== startIndex) {
+      setStartIndex(newStart);
+    }
+  }, [virtualRows, startIndex, windowSize, totalCount, isFetching]);
 
   return (
     <div className="flex h-full flex-col">
-      {/* simple status bar */}
       <div className="flex items-center gap-2 border-b p-2 text-sm">
         <span>
-          {isLoading
+          {isLoading && totalCount === 0
             ? "Loading..."
-            : `Rows loaded: ${rowsData.length}`}
+            : `Rows: ${totalCount} (window ${startIndex}–${
+                startIndex + rowsData.length - 1
+              })`}
         </span>
+        {isFetching && totalCount > 0 && (
+          <span className="text-xs text-gray-500">
+            Updating window...
+          </span>
+        )}
       </div>
 
       <div
@@ -170,16 +230,32 @@ export default function TableClient({
       >
         <div style={{ height: rowVirtualizer.getTotalSize() }}>
           <div style={{ paddingTop, paddingBottom }}>
-            <table className="min-w-full border-collapse text-sm">
+            <table className="border-collapse text-xs">
+              {/* fixed pixel widths for columns */}
+              <colgroup>
+                {/* index column */}
+                <col style={{ width: INDEX_COL_WIDTH }} />
+                {/* data columns */}
+                {columnsMeta.map(col => (
+                  <col
+                    key={col.id}
+                    style={{ width: DATA_COL_WIDTH }}
+                  />
+                ))}
+              </colgroup>
+
               <thead className="sticky top-0 bg-gray-100">
                 {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
+                  <tr key={headerGroup.id} className="h-6">
+                    <th className="border-b px-2 text-right text-[11px] text-gray-500">
+                      #
+                    </th>
                     {headerGroup.headers.map(header => {
                       const isSorted = header.column.getIsSorted();
                       return (
                         <th
                           key={header.id}
-                          className="border-b px-2 py-1 text-left cursor-pointer"
+                          className="border-b px-2 text-left cursor-pointer"
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(
@@ -193,13 +269,13 @@ export default function TableClient({
                     })}
                   </tr>
                 ))}
-                {/* filter row */}
-                <tr>
+                <tr className="h-6">
+                  <th className="border-b px-2" />
                   {table.getHeaderGroups()[0]?.headers.map(header => (
-                    <th key={header.id} className="border-b px-2 py-1">
+                    <th key={header.id} className="border-b px-2">
                       {header.column.getCanFilter() ? (
                         <input
-                          className="w-full border px-1 text-xs"
+                          className="h-5 w-full border px-1 text-[11px]"
                           value={
                             (header.column.getFilterValue() as string) ??
                             ""
@@ -215,13 +291,38 @@ export default function TableClient({
                 </tr>
               </thead>
               <tbody>
-                {virtualRows.map(virtualRow => {
-                  const row = table.getRowModel().rows[virtualRow.index];
-                  if (!row) return null;
+                {virtualRows.map(vRow => {
+                  const absoluteIndex = vRow.index;
+
+                  const row = table
+                    .getRowModel()
+                    .rows.find(
+                      r => r.original.index === absoluteIndex
+                    );
+
+                  if (!row) {
+                    return (
+                      <tr key={absoluteIndex} className="h-6 border-b">
+                        <td className="px-2 text-right text-[11px] text-gray-500">
+                          {absoluteIndex + 1}
+                        </td>
+                        <td
+                          colSpan={columnsMeta.length}
+                          className="px-2 text-[11px] text-gray-400"
+                        >
+                          Loading...
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   return (
-                    <tr key={row.id} className="border-b">
+                    <tr key={row.id} className="h-6 border-b">
+                      <td className="px-2 text-right text-[11px] text-gray-500">
+                        {row.original.index + 1}
+                      </td>
                       {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className="px-2 py-1">
+                        <td key={cell.id} className="px-2">
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()

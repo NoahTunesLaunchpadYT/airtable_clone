@@ -1,7 +1,7 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "~/server/db";
 import { columns, rows } from "~/server/db/schema";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 const filterSchema = z.object({
@@ -27,41 +27,78 @@ export const tableRouter = createTRPCRouter({
       return result;
     }),
 
+  // WINDOWED RANDOM-ACCESS getRows
   getRows: protectedProcedure
     .input(
       z.object({
         tableId: z.string().uuid(),
-        offset: z.number().default(0),
-        limit: z.number().default(100),
+        startIndex: z.number().int().min(0).default(0),
+        windowSize: z.number().int().min(1).max(1000).default(300),
         filters: z.array(filterSchema).optional(),
         sort: z.array(sortSchema).optional()
       })
     )
     .query(async ({ input }) => {
-      // ----- WHERE -----
-      const whereParts: SQL[] = [eq(rows.tableId, input.tableId)];
+      const { tableId, startIndex, windowSize } = input;
+
+      const fromIndex = startIndex;
+      const toIndex = startIndex + windowSize - 1;
+
+      // ----- BASE WHERE (no index window) -----
+      const baseWhere: SQL[] = [eq(rows.tableId, tableId)];
 
       if (input.filters && input.filters.length > 0) {
         for (const f of input.filters) {
           const colJson = sql`(${rows.values} ->> ${f.columnId})`;
 
           if (f.operator === "contains") {
-            whereParts.push(
+            baseWhere.push(
               sql`${colJson} ILIKE ${"%" + String(f.value) + "%"}`
             );
           } else if (f.operator === "equals") {
-            whereParts.push(sql`${colJson} = ${String(f.value)}`);
+            baseWhere.push(sql`${colJson} = ${String(f.value)}`);
           } else if (f.operator === "gt") {
-            whereParts.push(
+            baseWhere.push(
               sql`${colJson}::double precision > ${Number(f.value)}`
             );
           } else if (f.operator === "lt") {
-            whereParts.push(
+            baseWhere.push(
               sql`${colJson}::double precision < ${Number(f.value)}`
             );
           }
         }
       }
+
+      // ----- TOTAL COUNT for this table + filters -----
+      const [{ count } = { count: 0 }] = await db
+        .select({
+          count: sql<number>`cast(count(*) as int)`
+        })
+        .from(rows)
+        .where(and(...baseWhere));
+
+      const totalCount = count;
+
+      if (totalCount === 0) {
+        return {
+          rows: [],
+          totalCount: 0
+        };
+      }
+
+      // clamp window so we don't go beyond totalCount
+      const safeFrom = Math.max(0, Math.min(fromIndex, Math.max(0, totalCount - 1)));
+      const safeTo = Math.max(
+        safeFrom,
+        Math.min(toIndex, totalCount - 1)
+      );
+
+      // ----- WINDOW WHERE (add index range) -----
+      const windowWhere: SQL[] = [
+        ...baseWhere,
+        gte(rows.index, safeFrom),
+        lte(rows.index, safeTo)
+      ];
 
       // ----- ORDER BY -----
       const orderParts: SQL[] = [];
@@ -79,16 +116,19 @@ export const tableRouter = createTRPCRouter({
         }
       }
 
-      // Build query
+      // always add stable secondary ordering by index
+      orderParts.push(sql`${rows.index} asc`);
+
       const result = await db
         .select()
         .from(rows)
-        .where(and(...whereParts))
-        // spread dynamic SQL order parts, then stable secondary order by index
-        .orderBy(...orderParts, rows.index)
-        .limit(input.limit)
-        .offset(input.offset);
+        .where(and(...windowWhere))
+        .orderBy(...orderParts)
+        .limit(windowSize);
 
-      return result;
+      return {
+        rows: result,
+        totalCount
+      };
     })
 });
