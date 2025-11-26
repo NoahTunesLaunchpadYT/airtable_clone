@@ -21,16 +21,49 @@ function formatRelative(d?: Date | string | null) {
   return `${diffDay}d ago`
 }
 
+type WorkspaceLite = { id: string; name: string }
+
+type BaseLite = {
+  id: string
+  name: string
+  workspaceId: string
+  workspaceName: string
+  starred: boolean
+  lastModifiedAt: Date
+}
+
+function toMs(d?: Date | string | null) {
+  if (!d) return 0
+  return (typeof d === "string" ? new Date(d) : d).getTime()
+}
+
 export default function AirtableHomeClient({ userName }: Props) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activeNav, setActiveNav] = useState<"home" | "starred" | "recents">("home")
-
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null)
 
-  // Routers you said you now have:
   const workspacesQ = api.workspace.list.useQuery()
   const basesQ = api.base.getBases.useQuery()
+
+  // Normalise server results into small, stable arrays for UI + memo deps
+  const workspaces = useMemo<WorkspaceLite[]>(
+    () => (workspacesQ.data ?? []).map(w => ({ id: w.id, name: w.name })),
+    [workspacesQ.data]
+  )
+
+  const bases = useMemo<BaseLite[]>(
+    () =>
+      (basesQ.data ?? []).map(b => ({
+        id: b.id,
+        name: b.name,
+        workspaceId: b.workspaceId,
+        workspaceName: b.workspaceName,
+        starred: b.starred,
+        lastModifiedAt: b.lastModifiedAt,
+      })),
+    [basesQ.data]
+  )
 
   const demoM = api.demo.createDemoData.useMutation({
     onSuccess: async () => {
@@ -38,29 +71,19 @@ export default function AirtableHomeClient({ userName }: Props) {
       setActiveNav("home")
       setSelectedWorkspaceId(null)
       setSelectedBaseId(null)
-    }
+    },
   })
 
   const toggleStarM = api.base.toggleStarred.useMutation({
     onSuccess: async () => {
       await basesQ.refetch()
-    }
+    },
   })
 
   const tablesQ = api.base.getTablesForBase.useQuery(
     { baseId: selectedBaseId ?? "" },
     { enabled: !!selectedBaseId }
   )
-
-  // Cast to avoid TS pain if your return shapes are still evolving
-  const workspaces = (workspacesQ.data ?? []) as Array<{ id: string; name: string }>
-  const bases = (basesQ.data ?? []) as Array<{
-    id: string
-    name: string
-    workspaceId: string | null
-    starred?: boolean
-    lastModified?: Date | string | null
-  }>
 
   const basesFiltered = useMemo(() => {
     let list = bases
@@ -70,27 +93,18 @@ export default function AirtableHomeClient({ userName }: Props) {
     }
 
     if (activeNav === "starred") {
-      list = list.filter(b => !!b.starred)
+      list = list.filter(b => b.starred)
     }
 
     if (activeNav === "recents") {
-      list = [...list].sort((a, b) => {
-        const ad = a.lastModified ? new Date(a.lastModified).getTime() : 0
-        const bd = b.lastModified ? new Date(b.lastModified).getTime() : 0
-        return bd - ad
-      })
+      list = [...list].sort((a, b) => toMs(b.lastModifiedAt) - toMs(a.lastModifiedAt))
     }
 
     return list
   }, [bases, selectedWorkspaceId, activeNav])
 
   const recentBases = useMemo(() => {
-    const sorted = [...bases].sort((a, b) => {
-      const ad = a.lastModified ? new Date(a.lastModified).getTime() : 0
-      const bd = b.lastModified ? new Date(b.lastModified).getTime() : 0
-      return bd - ad
-    })
-    return sorted.slice(0, 6)
+    return [...bases].sort((a, b) => toMs(b.lastModifiedAt) - toMs(a.lastModifiedAt)).slice(0, 6)
   }, [bases])
 
   const selectedWorkspaceName =
@@ -356,21 +370,22 @@ export default function AirtableHomeClient({ userName }: Props) {
                   {tablesQ.isLoading && <div className="text-[13px] text-[#6b6b76]">Loading tables...</div>}
                   {!tablesQ.isLoading && (
                     <div className="space-y-2">
-                      {(((tablesQ.data ?? []) as any[]) as Array<{ id: string; name: string }>).map(t => (
+                      {(tablesQ.data ?? []).map(t => (
                         <div
                           key={t.id}
                           className="flex items-center justify-between rounded-md px-2 py-2 hover:bg-[#f2f2f5]"
                         >
                           <div className="text-[13px] font-medium text-[#2b2b31]">{t.name}</div>
-                          <Link
-                            href={`/${(selectedBaseId as string)}/${t.id}`}
-                            className="text-[12px] text-[#1b72e8] hover:underline"
-                          >
+                            <Link
+                              href={`/${selectedBaseId}/${t.id}`}
+                              className="text-[12px] text-[#1b72e8] hover:underline"
+                            >
                             Open
                           </Link>
                         </div>
                       ))}
-                      {((tablesQ.data ?? []) as any[]).length === 0 && (
+
+                      {(tablesQ.data?.length ?? 0) === 0 && (
                         <div className="text-[13px] text-[#6b6b76]">No tables yet in this base.</div>
                       )}
                     </div>

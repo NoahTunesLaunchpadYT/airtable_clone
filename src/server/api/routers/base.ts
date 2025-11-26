@@ -30,13 +30,15 @@ export const baseRouter = createTRPCRouter({
   // When user clicks on a base to open it
   getTablesForBase: protectedProcedure
     .input(z.object({ baseId: z.string().uuid() }))
+    .output(z.array(z.object({ id: z.string().uuid(), name: z.string() })))
     .query(async ({ input }) => {
       const result = await db
-        .select()
+        .select({ id: tables.id, name: tables.name }) // select only what you need
         .from(tables)
         .where(eq(tables.baseId, input.baseId))
-        .orderBy(tables.orderIndex);
-      return result;
+        .orderBy(tables.orderIndex)
+
+      return result
     }),
 
   // When user clicks the star icon on a base

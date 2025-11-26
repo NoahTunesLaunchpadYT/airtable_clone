@@ -7,8 +7,7 @@ import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
-  type SortingState,
-  type ColumnFiltersState
+  type SortingState
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, useMemo, useEffect } from "react";
@@ -357,18 +356,20 @@ export default function TableClient({
 
     const setFilterValue = (raw: string) => {
       props.setFilterInputs(prev => {
-        const rest = prev.filter(f => f.columnId !== props.col.id);
+        const existing = prev.find(f => f.columnId === props.col.id);
+        const op = existing?.operator ?? currentOp; // op is already FilterOp
 
         // if operator does not need a value, ignore input
-        const op = (prev.find(f => f.columnId === props.col.id)?.operator ?? currentOp) as FilterOp;
         if (op === "isEmpty" || op === "isNotEmpty") return prev;
 
-        if (!raw.trim()) return rest; // empty clears the filter
+        const trimmed = raw.trim();
+        if (!trimmed) return prev.filter(f => f.columnId !== props.col.id); // empty clears
 
-        const value: string | number = isNumber ? Number(raw) : raw;
-        if (isNumber && !Number.isFinite(value as number)) return rest;
+        const parsed: string | number = isNumber ? Number(trimmed) : trimmed;
+        if (isNumber && !Number.isFinite(parsed)) return prev;
 
-        return [...rest, { columnId: props.col.id, operator: op, value }];
+        const rest = prev.filter(f => f.columnId !== props.col.id);
+        return [...rest, { columnId: props.col.id, operator: op, value: parsed }];
       });
     };
 
