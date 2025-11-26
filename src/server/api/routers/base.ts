@@ -1,22 +1,33 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "~/server/db";
-import { bases, tables, columns, rows } from "~/server/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { workspaces, bases, tables } from "~/server/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
-import { faker } from "@faker-js/faker";
-import { createIndexesForColumn } from "~/server/db/columnIndexes";
-
+import { TRPCError } from "@trpc/server";
 
 export const baseRouter = createTRPCRouter({
+  // When loading the workspace page
   getBases: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
+
     const result = await db
-      .select()
+      .select({
+        id: bases.id,
+        name: bases.name,
+        starred: bases.starred,
+        lastModifiedAt: bases.lastModifiedAt,
+        workspaceId: bases.workspaceId,
+        workspaceName: workspaces.name,
+      })
       .from(bases)
-      .where(eq(bases.ownerId, userId));
+      .innerJoin(workspaces, eq(bases.workspaceId, workspaces.id))
+      .where(and(eq(bases.ownerId, userId), eq(workspaces.ownerId, userId)))
+      .orderBy(desc(bases.lastModifiedAt));
+
     return result;
   }),
 
+  // When user clicks on a base to open it
   getTablesForBase: protectedProcedure
     .input(z.object({ baseId: z.string().uuid() }))
     .query(async ({ input }) => {
@@ -28,95 +39,28 @@ export const baseRouter = createTRPCRouter({
       return result;
     }),
 
-  // Create demo base + table + 1000 rows
-  createDemoBase: protectedProcedure.mutation(async ({ ctx }) => {
+  // When user clicks the star icon on a base
+  toggleStarred: protectedProcedure
+  .input(z.object({ baseId: z.string().uuid() }))
+  .mutation(async ({ ctx, input }) => {
     const userId = ctx.session.user.id;
 
-    // 0) delete all existing bases (and their tables/rows) for this user
-    await db.delete(bases).where(eq(bases.ownerId, userId));
-
-    // 1) base
     const [base] = await db
-      .insert(bases)
-      .values({
-        ownerId: userId,
-        name: `Demo Base ${new Date().toISOString()}`
+      .select({ starred: bases.starred })
+      .from(bases)
+      .where(and(eq(bases.id, input.baseId), eq(bases.ownerId, userId)));
+
+    if (!base) throw new TRPCError({ code: "NOT_FOUND", message: "Base not found" });
+
+    const [updated] = await db
+      .update(bases)
+      .set({
+        starred: !base.starred,
+        lastModifiedAt: new Date(),
       })
-      .returning({ id: bases.id });
+      .where(and(eq(bases.id, input.baseId), eq(bases.ownerId, userId)))
+      .returning({ id: bases.id, starred: bases.starred, lastModifiedAt: bases.lastModifiedAt });
 
-    if (!base) {
-      throw new Error("Failed to create base");
-    }
-
-    const baseId = base.id;
-
-    // 2) table
-    const [table] = await db
-      .insert(tables)
-      .values({
-        baseId,
-        name: "Demo Table",
-        orderIndex: 0
-      })
-      .returning({ id: tables.id });
-
-    if (!table) {
-      throw new Error("Failed to create table");
-    }
-
-    const tableId = table.id;
-
-    // 3) columns
-    const insertedColumns = await db
-      .insert(columns)
-      .values([
-        { tableId, name: "Name",  type: "text",   orderIndex: 0 },
-        { tableId, name: "Email", type: "text",   orderIndex: 1 },
-        { tableId, name: "Age",   type: "number", orderIndex: 2 },
-      ])
-      .returning({ id: columns.id, name: columns.name, type: columns.type });
-
-
-    const nameColId = insertedColumns.find(c => c.name === "Name")!.id;
-    const emailColId = insertedColumns.find(c => c.name === "Email")!.id;
-    const ageColId = insertedColumns.find(c => c.name === "Age")!.id;
-
-    // 4) rows in batches so we don't blow stack/params
-    const ROW_COUNT = 100_000;
-    const BATCH_SIZE = 1_000;
-
-    for (let start = 0; start < ROW_COUNT; start += BATCH_SIZE) {
-      const end = Math.min(start + BATCH_SIZE, ROW_COUNT);
-
-      const batch: (typeof rows.$inferInsert)[] = [];
-
-      for (let i = start; i < end; i++) {
-        batch.push({
-          tableId,
-          index: i,
-          values: {
-            [nameColId]: faker.person.fullName(),
-            [emailColId]: faker.internet.email(),
-            [ageColId]: faker.number.int({ min: 18, max: 65 })
-          }
-        });
-      }
-
-      await db.insert(rows).values(batch);
-    }
-
-    // 5) create indexes AFTER bulk insert (faster)
-    for (const c of insertedColumns) {
-      await createIndexesForColumn({
-        tableId,
-        columnId: c.id,
-        type: c.type
-      });
-    }
-
-    // 6) optional but recommended
-    await db.execute(sql`ANALYZE ${rows}`);
-
-    return { baseId, tableId };
-  })
+    return updated!;
+  }),
 });

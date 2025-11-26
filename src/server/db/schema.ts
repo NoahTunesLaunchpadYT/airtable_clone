@@ -132,12 +132,50 @@ export const columnTypeEnum = pgEnum("column_type", [
   "attachment"
 ]);
 
-export const bases = createTable("bases", {
-  id: uuid("id").primaryKey().defaultRandom(),    // Base ID
-  ownerId: text("owner_id").notNull(),            // User ID of the base owner
-  name: text("name").notNull(),                   // Base name
-  createdAt: timestamp("created_at").defaultNow() // Creation timestamp
-});
+// NEW
+export const workspaces = createTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: text("owner_id").notNull(), // keep consistent with your current bases.ownerId
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("workspaces_owner_idx").on(t.ownerId),
+    index("workspaces_owner_name_idx").on(t.ownerId, t.name),
+  ],
+);
+
+// UPDATED
+export const bases = createTable(
+  "bases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: text("owner_id").notNull(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+
+    name: text("name").notNull(),
+
+    starred: boolean("starred").notNull().default(false),
+
+    // this is your "last_modified"
+    lastModifiedAt: timestamp("last_modified_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("bases_owner_idx").on(t.ownerId),
+    index("bases_workspace_idx").on(t.workspaceId),
+    index("bases_owner_starred_idx").on(t.ownerId, t.starred),
+    index("bases_last_modified_idx").on(t.ownerId, t.lastModifiedAt),
+  ],
+);
 
 export const tables = createTable("tables", {
   id: uuid("id").primaryKey().defaultRandom(),                  // Table ID
