@@ -125,14 +125,13 @@ import {
   jsonb
 } from "drizzle-orm/pg-core";
 
-export const columnTypeEnum = pgEnum("column_type", [
+export const columnTypeEnum = pgEnum("airtable_clone_column_type", [
   "text",
   "number",
   "singleSelect",
   "attachment"
 ]);
 
-// NEW
 export const workspaces = createTable(
   "workspaces",
   {
@@ -148,7 +147,6 @@ export const workspaces = createTable(
   ],
 );
 
-// UPDATED
 export const bases = createTable(
   "bases",
   {
