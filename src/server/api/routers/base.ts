@@ -1,9 +1,11 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "~/server/db";
 import { bases, tables, columns, rows } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { faker } from "@faker-js/faker";
+import { createIndexesForColumn } from "~/server/db/columnIndexes";
+
 
 export const baseRouter = createTRPCRouter({
   getBases: protectedProcedure.query(async ({ ctx }) => {
@@ -68,29 +70,12 @@ export const baseRouter = createTRPCRouter({
     const insertedColumns = await db
       .insert(columns)
       .values([
-        {
-          tableId,
-          name: "Name",
-          type: "text",
-          orderIndex: 0
-        },
-        {
-          tableId,
-          name: "Email",
-          type: "text",
-          orderIndex: 1
-        },
-        {
-          tableId,
-          name: "Age",
-          type: "number",
-          orderIndex: 2
-        }
+        { tableId, name: "Name",  type: "text",   orderIndex: 0 },
+        { tableId, name: "Email", type: "text",   orderIndex: 1 },
+        { tableId, name: "Age",   type: "number", orderIndex: 2 },
       ])
-      .returning({
-        id: columns.id,
-        name: columns.name
-      });
+      .returning({ id: columns.id, name: columns.name, type: columns.type });
+
 
     const nameColId = insertedColumns.find(c => c.name === "Name")!.id;
     const emailColId = insertedColumns.find(c => c.name === "Email")!.id;
@@ -119,6 +104,18 @@ export const baseRouter = createTRPCRouter({
 
       await db.insert(rows).values(batch);
     }
+
+    // 5) create indexes AFTER bulk insert (faster)
+    for (const c of insertedColumns) {
+      await createIndexesForColumn({
+        tableId,
+        columnId: c.id,
+        type: c.type
+      });
+    }
+
+    // 6) optional but recommended
+    await db.execute(sql`ANALYZE ${rows}`);
 
     return { baseId, tableId };
   })

@@ -1,9 +1,10 @@
+// app/[baseId]/[tableId]/tableClient.tsx
+
 "use client";
 
 import {
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type SortingState,
@@ -32,10 +33,24 @@ type TableClientProps = {
   columnsMeta: ColumnMeta[];
 };
 
+type SortDirection = "none" | "asc" | "desc";
+
+type TextFilterOp =
+  | "contains"
+  | "doesNotContain"
+  | "is"
+  | "isNot"
+  | "isEmpty"
+  | "isNotEmpty";
+
+type NumberFilterOp = "gt" | "lt" | "is" | "isNot" | "isEmpty" | "isNotEmpty";
+
+type FilterOp = TextFilterOp | NumberFilterOp;
+
 type FilterInput = {
   columnId: string;
-  operator: "gt" | "contains" | "equals" | "lt";
-  value: string | number;
+  operator: FilterOp;
+  value?: string | number;
 };
 
 type SortInput = {
@@ -50,51 +65,21 @@ export default function TableClient({
   tableId,
   columnsMeta
 }: TableClientProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] =
-    useState<ColumnFiltersState>([]);
-
+  const windowSize = 300;
   const [startIndex, setStartIndex] = useState(0);
-  const windowSize = 100;
 
-  const filtersForApi: FilterInput[] | undefined = useMemo(() => {
-    if (columnFilters.length === 0) return undefined;
+  const [sortInputs, setSortInputs] = useState<SortInput[]>([]);
+  const [filterInputs, setFilterInputs] = useState<FilterInput[]>([]);
 
-    return columnFilters.map<FilterInput>(f => {
-      const colMeta = columnsMeta.find(c => c.id === f.id);
+  const sortingState = useMemo<SortingState>(
+    () => sortInputs.map(s => ({ id: s.columnId, desc: s.direction === "desc" })),
+    [sortInputs]
+  );
 
-      const operator: FilterInput["operator"] =
-        colMeta?.type === "number" ? "gt" : "contains";
+  const filtersForApi = useMemo(() => (filterInputs.length ? filterInputs : undefined), [filterInputs]);
+  const sortForApi = useMemo(() => (sortInputs.length ? sortInputs : undefined), [sortInputs]);
 
-      const value = f.value as string;
-
-      return {
-        columnId: f.id,
-        operator,
-        value
-      };
-    });
-  }, [columnFilters, columnsMeta]);
-
-  const sortForApi: SortInput[] | undefined = useMemo(() => {
-    if (sorting.length === 0) return undefined;
-
-    return sorting.map<SortInput>(s => {
-      const direction: SortInput["direction"] = s.desc
-        ? "desc"
-        : "asc";
-      return {
-        columnId: s.id,
-        direction
-      };
-    });
-  }, [sorting]);
-
-  const {
-    data,
-    isLoading,
-    isFetching
-  } = api.table.getRows.useQuery({
+  const { data, isLoading, isFetching } = api.table.getRows.useQuery({
     tableId,
     startIndex,
     windowSize,
@@ -103,14 +88,17 @@ export default function TableClient({
   });
 
   const [lastData, setLastData] = useState<typeof data>();
+  const [lastWindowStart, setLastWindowStart] = useState(0);
 
   useEffect(() => {
-    if (data !== undefined) {
+    if (data) {
       setLastData(data);
+      setLastWindowStart(data.windowStart);
     }
   }, [data]);
 
   const effectiveData = data ?? lastData;
+  const effectiveWindowStart = data?.windowStart ?? lastWindowStart;
 
   const rowsData = (effectiveData?.rows ?? []) as RowData[];
 
@@ -140,14 +128,8 @@ export default function TableClient({
   const table = useReactTable<RowData>({
     data: rowsData,
     columns,
-    state: {
-      sorting,
-      columnFilters
-    },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    state: { sorting: sortingState },
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     manualSorting: true,
     manualFiltering: true
   });
@@ -207,6 +189,8 @@ export default function TableClient({
     }
   }, [virtualRows, startIndex, windowSize, totalCount, isFetching]);
 
+  const [openCol, setOpenCol] = useState<string | null>(null);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b p-2 text-sm">
@@ -251,58 +235,52 @@ export default function TableClient({
                       #
                     </th>
                     {headerGroup.headers.map(header => {
+                      const colMeta = columnsMeta.find(c => c.id === header.column.id);
                       const isSorted = header.column.getIsSorted();
+
                       return (
-                        <th
-                          key={header.id}
-                          className="border-b px-2 text-left cursor-pointer"
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                          {isSorted === "asc" && " ▲"}
-                          {isSorted === "desc" && " ▼"}
+                        <th key={header.id} className="border-b px-2 text-left">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className="cursor-pointer select-none"
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {isSorted === "asc" && " ▲"}
+                              {isSorted === "desc" && " ▼"}
+                            </span>
+
+                              {colMeta && (
+                                <ColumnMenu
+                                  col={colMeta}
+                                  openCol={openCol}
+                                  setOpenCol={setOpenCol}
+                                  sortInputs={sortInputs}
+                                  setSortInputs={setSortInputs}
+                                  filterInputs={filterInputs}
+                                  setFilterInputs={setFilterInputs}
+                                />
+                              )}
+                          </div>
                         </th>
                       );
                     })}
                   </tr>
                 ))}
-                <tr className="h-6">
-                  <th className="border-b px-2" />
-                  {table.getHeaderGroups()[0]?.headers.map(header => (
-                    <th key={header.id} className="border-b px-2">
-                      {header.column.getCanFilter() ? (
-                        <input
-                          className="h-5 w-full border px-1 text-[11px]"
-                          value={
-                            (header.column.getFilterValue() as string) ??
-                            ""
-                          }
-                          onChange={e =>
-                            header.column.setFilterValue(e.target.value)
-                          }
-                          placeholder="Filter..."
-                        />
-                      ) : null}
-                    </th>
-                  ))}
-                </tr>
               </thead>
               <tbody>
                 {virtualRows.map(vRow => {
                   const absoluteIndex = vRow.index;
+                  const rel = absoluteIndex - effectiveWindowStart;
 
-                  const row = table
-                    .getRowModel()
-                    .rows.find(
-                      r => r.original.index === absoluteIndex
-                    );
+                  const row =
+                    rel >= 0 && rel < table.getRowModel().rows.length
+                      ? table.getRowModel().rows[rel]
+                      : null;
 
                   if (!row) {
                     return (
-                      <tr key={absoluteIndex} className="h-6 border-b">
+                      <tr key={`placeholder-${absoluteIndex}`} className="h-6 border-b">
                         <td className="px-2 text-right text-[11px] text-gray-500">
                           {absoluteIndex + 1}
                         </td>
@@ -317,16 +295,13 @@ export default function TableClient({
                   }
 
                   return (
-                    <tr key={row.id} className="h-6 border-b">
+                    <tr key={row.original.id} className="h-6 border-b">
                       <td className="px-2 text-right text-[11px] text-gray-500">
-                        {row.original.index + 1}
+                        {absoluteIndex + 1}
                       </td>
                       {row.getVisibleCells().map(cell => (
                         <td key={cell.id} className="px-2">
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
                     </tr>
@@ -340,3 +315,176 @@ export default function TableClient({
     </div>
   );
 }
+
+  function ColumnMenu(props: {
+    col: ColumnMeta;
+    openCol: string | null;
+    setOpenCol: React.Dispatch<React.SetStateAction<string | null>>;
+    sortInputs: SortInput[];
+    setSortInputs: React.Dispatch<React.SetStateAction<SortInput[]>>;
+    filterInputs: FilterInput[];
+    setFilterInputs: React.Dispatch<React.SetStateAction<FilterInput[]>>;
+  }) {
+    const isNumber = props.col.type === "number";
+
+    const currentSort: SortDirection =
+      props.sortInputs.find(s => s.columnId === props.col.id)?.direction ?? "none";
+    const currentFilter = props.filterInputs.find(f => f.columnId === props.col.id);
+    const currentOp = currentFilter?.operator ?? (isNumber ? ("gt" as FilterOp) : ("contains" as FilterOp));
+    const needsValue = currentOp !== "isEmpty" && currentOp !== "isNotEmpty";
+
+    const setSortDir = (dir: SortDirection) => {
+      props.setSortInputs(prev => {
+        const rest = prev.filter(s => s.columnId !== props.col.id);
+        if (dir === "none") return rest;
+        return [...rest, { columnId: props.col.id, direction: dir }];
+      });
+    };
+
+    const setFilterOp = (op: FilterOp) => {
+      props.setFilterInputs(prev => {
+        const rest = prev.filter(f => f.columnId !== props.col.id);
+
+        // treat "none" via clear button, not here
+        if (op === "isEmpty" || op === "isNotEmpty") {
+          return [...rest, { columnId: props.col.id, operator: op }];
+        }
+
+        const prevVal = prev.find(f => f.columnId === props.col.id)?.value;
+        return [...rest, { columnId: props.col.id, operator: op, value: prevVal ?? "" }];
+      });
+    };
+
+    const setFilterValue = (raw: string) => {
+      props.setFilterInputs(prev => {
+        const rest = prev.filter(f => f.columnId !== props.col.id);
+
+        // if operator does not need a value, ignore input
+        const op = (prev.find(f => f.columnId === props.col.id)?.operator ?? currentOp) as FilterOp;
+        if (op === "isEmpty" || op === "isNotEmpty") return prev;
+
+        if (!raw.trim()) return rest; // empty clears the filter
+
+        const value: string | number = isNumber ? Number(raw) : raw;
+        if (isNumber && !Number.isFinite(value as number)) return rest;
+
+        return [...rest, { columnId: props.col.id, operator: op, value }];
+      });
+    };
+
+    const clearFilter = () => props.setFilterInputs(prev => prev.filter(f => f.columnId !== props.col.id));
+    const clearSort = () => setSortDir("none");
+
+    const isOpen = props.openCol === props.col.id;
+    const hasFilter = !!props.filterInputs.find(f => f.columnId === props.col.id);
+    const hasSort = currentSort !== "none";
+
+    return (
+      <div className="relative inline-flex items-center gap-2">
+        {(hasSort || hasFilter) && (
+          <span className="text-[10px] text-gray-500">
+            {hasSort ? (currentSort === "asc" ? "▲" : "▼") : ""}{hasFilter ? " •" : ""}
+          </span>
+        )}
+
+        <button
+          type="button"
+          className="rounded border px-1 text-[11px] text-gray-600 hover:bg-gray-50"
+          onClick={() => props.setOpenCol(v => (v === props.col.id ? null : props.col.id))}
+        >
+          ⋯
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded border bg-white p-2 shadow-lg">
+            <div className="mb-2 text-[11px] font-medium text-gray-700">{props.col.name}</div>
+
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] text-gray-500">Sort</div>
+              <select
+                className="h-7 w-full rounded border px-2 text-[11px]"
+                value={currentSort}
+                onChange={e => setSortDir(e.target.value as SortDirection)}
+              >
+                <option value="none">None</option>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+
+              {hasSort && (
+                <button
+                  type="button"
+                  className="mt-1 text-[10px] text-gray-500 hover:text-gray-700"
+                  onClick={clearSort}
+                >
+                  Clear sort
+                </button>
+              )}
+            </div>
+
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] text-gray-500">Filter</div>
+
+              <select
+                className="h-7 w-full rounded border px-2 text-[11px]"
+                value={currentFilter?.operator ?? ""}
+                onChange={e => setFilterOp(e.target.value as FilterOp)}
+              >
+                <option value="" disabled>
+                  Select…
+                </option>
+
+                {!isNumber && (
+                  <>
+                    <option value="contains">Contains</option>
+                    <option value="doesNotContain">Does not contain</option>
+                  </>
+                )}
+
+                <option value="is">Is</option>
+                <option value="isNot">Is not</option>
+                {isNumber && (
+                  <>
+                    <option value="gt">Greater than</option>
+                    <option value="lt">Less than</option>
+                  </>
+                )}
+                <option value="isEmpty">Is empty</option>
+                <option value="isNotEmpty">Is not empty</option>
+              </select>
+
+              {needsValue && (
+                <input
+                  className="mt-2 h-7 w-full rounded border px-2 text-[11px]"
+                  type={isNumber ? "number" : "text"}
+                  value={String(currentFilter?.value ?? "")}
+                  onChange={e => setFilterValue(e.target.value)}
+                  placeholder="Value…"
+                />
+              )}
+
+              {hasFilter && (
+                <button
+                  type="button"
+                  className="mt-1 text-[10px] text-gray-500 hover:text-gray-700"
+                  onClick={clearFilter}
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="rounded bg-gray-100 px-2 py-1 text-[11px] hover:bg-gray-200"
+                onClick={() => props.setOpenCol(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
