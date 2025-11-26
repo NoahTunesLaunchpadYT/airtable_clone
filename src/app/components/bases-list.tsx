@@ -8,10 +8,11 @@ export function BasesList() {
   const utils = api.useContext();
 
   const { mutate: createDemoBase, isPending: isSeeding } =
-    api.base.createDemoBase.useMutation({
+    api.demo.createDemoData.useMutation({
       onSuccess: async () => {
+        await utils.workspace.list.invalidate();
         await utils.base.getBases.invalidate();
-      }
+      },
     });
 
   return (
