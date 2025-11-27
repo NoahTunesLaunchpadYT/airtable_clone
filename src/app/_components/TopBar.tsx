@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { AirtableBrandLogo, AirtableMark, IconBell, IconHelp, IconList, IconSearch } from "~/app/_components/AirtableIcons"
+import { AirtableBrandLogo, IconBell, IconHelp, IconList, IconSearch } from "~/app/_components/AirtableIcons"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 

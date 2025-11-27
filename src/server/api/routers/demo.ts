@@ -16,37 +16,109 @@ export const demoRouter = createTRPCRouter({
     const txResult = await db.transaction(async (tx) => {
       await tx.delete(workspaces).where(eq(workspaces.ownerId, userId));
 
-      const [ws1, ws2] = await tx
+      const now = Date.now()
+      const ago = (ms: number) => new Date(now - ms)
+
+      const [wsDemo, wsPersonal, wsTeam, wsEmpty] = await tx
         .insert(workspaces)
         .values([
           { ownerId: userId, name: "Demo Workspace" },
+          { ownerId: userId, name: "Personal" },
+          { ownerId: userId, name: "Team Workspace" },
           { ownerId: userId, name: "Empty Workspace" },
         ])
-        .returning({ id: workspaces.id, name: workspaces.name });
+        .returning({ id: workspaces.id, name: workspaces.name })
 
-      if (!ws1 || !ws2) throw new Error("Failed to create workspaces");
+      if (!wsDemo || !wsPersonal || !wsTeam || !wsEmpty) throw new Error("Failed to create workspaces")
 
-      const [baseStarred, baseEmpty] = await tx
+      const insertedBases = await tx
         .insert(bases)
         .values([
+          // Keep your two “main” bases (used below for tables/rows)
           {
             ownerId: userId,
-            workspaceId: ws1.id,
+            workspaceId: wsDemo.id,
             name: "Starred Base",
             starred: true,
             color: randomPastelHex(),
+            lastOpenedAt: ago(60 * 60 * 1000), // 1 hour ago
           },
           {
             ownerId: userId,
-            workspaceId: ws1.id,
+            workspaceId: wsDemo.id,
             name: "Empty Base",
             starred: false,
             color: randomPastelHex(),
+            lastOpenedAt: ago(3 * 24 * 60 * 60 * 1000), // 3 days ago
+          },
+
+          // Extra bases to exercise Today / Past 7 / Past 30 / Past year / Earlier
+          {
+            ownerId: userId,
+            workspaceId: wsPersonal.id,
+            name: "Groceries & Meals",
+            starred: false,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(20 * 1000), // 20 seconds ago (Today)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsPersonal.id,
+            name: "Uni Planner",
+            starred: true,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(2 * 60 * 60 * 1000), // 2 hours ago (Today)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsTeam.id,
+            name: "Hiring Pipeline",
+            starred: false,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(6 * 24 * 60 * 60 * 1000), // 6 days ago (Past 7)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsTeam.id,
+            name: "Sprint Board",
+            starred: true,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(12 * 24 * 60 * 60 * 1000), // 12 days ago (Past 30)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsDemo.id,
+            name: "Marketing Calendar",
+            starred: false,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(28 * 24 * 60 * 60 * 1000), // 28 days ago (Past 30)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsDemo.id,
+            name: "Budget 2025",
+            starred: false,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(120 * 24 * 60 * 60 * 1000), // ~4 months (Past year)
+          },
+          {
+            ownerId: userId,
+            workspaceId: wsDemo.id,
+            name: "Archive (Old)",
+            starred: false,
+            color: randomPastelHex(),
+            lastOpenedAt: ago(420 * 24 * 60 * 60 * 1000), // ~14 months (Earlier)
           },
         ])
-        .returning({ id: bases.id, name: bases.name, color: bases.color, lastOpenedAt: bases.lastOpenedAt });
+        .returning({
+          id: bases.id,
+          name: bases.name,
+          color: bases.color,
+          lastOpenedAt: bases.lastOpenedAt,
+        })
 
-
+      const baseStarred = insertedBases.find(b => b.name === "Starred Base")
+      const baseEmpty = insertedBases.find(b => b.name === "Empty Base")
       if (!baseStarred || !baseEmpty) throw new Error("Failed to create bases");
 
       const [tableBig, tableSmall] = await tx
@@ -132,7 +204,7 @@ export const demoRouter = createTRPCRouter({
       const allInsertedColumns = [...bigCols.insertedColumns, ...smallCols.insertedColumns];
 
       return {
-        workspaceIds: { demo: ws1.id, empty: ws2.id },
+        workspaceIds: { demo: wsDemo.id, empty: wsDemo.id },
         baseIds: { starred: baseStarred.id, empty: baseEmpty.id },
         tableIds: { big: tableBig.id, small: tableSmall.id },
         insertedColumns: allInsertedColumns, // for indexing outside tx

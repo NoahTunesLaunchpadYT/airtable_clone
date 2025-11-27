@@ -3,7 +3,7 @@
 import type { NavKey, WorkspaceLite } from "~/app/_lib/types"
 import { SidebarItem } from "./SidebarItem"
 import { WorkspaceRow } from "./WorkspaceRow"
-import { IconClock, IconHome, IconPlus, IconSettings, IconStar } from "~/app/_components/AirtableIcons"
+import { IconHome, IconPlus, IconSettings, IconStar } from "~/app/_components/AirtableIcons"
 
 export function Sidebar(props: {
   collapsed: boolean
@@ -36,13 +36,6 @@ export function Sidebar(props: {
             icon={<IconStar />}
             label="Starred"
             onClick={() => props.onChangeNav("starred")}
-          />
-          <SidebarItem
-            collapsed={props.collapsed}
-            active={props.activeNav === "recents"}
-            icon={<IconClock />}
-            label="Recents"
-            onClick={() => props.onChangeNav("recents")}
           />
         </div>
 

@@ -1,3 +1,4 @@
+// src/app/_components/BaseCard.tsx
 "use client"
 
 import { IconStarFilled } from "~/app/_components/AirtableIcons"
@@ -31,11 +32,11 @@ export function BaseCard(props: {
     <div
       role="button"
       tabIndex={0}
-      onClick={props.onOpen}
+      onClick={() => props.onOpen()} // ensure it always calls the handler
       onKeyDown={e => {
         if (e.key === "Enter" || e.key === " ") props.onOpen()
       }}
-      className="group relative flex h-[92px] min-w-[286px] max-w-[572px] flex-1 cursor-pointer items-stretch overflow-hidden rounded-[6px] bg-white shadow-elevation-low hover:shadow-elevation-medium-hover focus:outline-none"
+      className="group relative flex h-[92px] w-full cursor-pointer items-stretch overflow-hidden rounded-[6px] bg-white shadow-elevation-low hover:shadow-elevation-medium-hover focus:outline-none"
     >
       {/* Left 92x92 block */}
       <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center">
@@ -51,16 +52,19 @@ export function BaseCard(props: {
       {/* Text block */}
       <div className="flex min-w-0 flex-1 flex-col justify-center pr-4 text-left">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 truncate text-[14px] font-semibold leading-5 text-foreground-default">
-            {b.name}
-          </div>
+          <div className="min-w-0 truncate text-[14px] font-semibold leading-5 text-foreground-default">{b.name}</div>
 
           <button
             type="button"
             className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#f2f2f5]"
             onClick={e => {
-              e.stopPropagation()
+              e.preventDefault()
+              e.stopPropagation() // star should NOT navigate
               props.onToggleStar()
+            }}
+            onPointerDown={e => {
+              e.preventDefault()
+              e.stopPropagation()
             }}
             aria-label={b.starred ? "Unstar base" : "Star base"}
             title={b.starred ? "Unstar" : "Star"}
