@@ -1,9 +1,10 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "~/server/db";
 import { workspaces, bases, tables } from "~/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { sql, eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { randomPastelHex } from "~/server/utils/colors"
 
 export const baseRouter = createTRPCRouter({
   // When loading the workspace page
@@ -18,6 +19,8 @@ export const baseRouter = createTRPCRouter({
         lastModifiedAt: bases.lastModifiedAt,
         workspaceId: bases.workspaceId,
         workspaceName: workspaces.name,
+        color: bases.color,
+        lastOpenedAt: bases.lastOpenedAt
       })
       .from(bases)
       .innerJoin(workspaces, eq(bases.workspaceId, workspaces.id))
@@ -65,4 +68,60 @@ export const baseRouter = createTRPCRouter({
 
     return updated!;
   }),
+
+  markOpened: protectedProcedure
+  .input(z.object({ baseId: z.string().uuid() }))
+  .mutation(async ({ ctx, input }) => {
+    const updated = await ctx.db
+      .update(bases)
+      .set({ lastOpenedAt: sql`now()` })
+      .where(and(eq(bases.id, input.baseId), eq(bases.ownerId, ctx.session.user.id)))
+      .returning({ id: bases.id })
+
+    if (updated.length === 0) {
+      throw new TRPCError({ code: "NOT_FOUND" })
+    }
+
+    return { ok: true }
+  }),
+
+  // base router: in your create base mutation
+  createBase: protectedProcedure
+    .input(
+      z.object({
+        workspaceId: z.string().uuid(),
+        name: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id
+
+      // optional but recommended: ensure workspace belongs to user
+      const [ws] = await db
+        .select({ id: workspaces.id })
+        .from(workspaces)
+        .where(and(eq(workspaces.id, input.workspaceId), eq(workspaces.ownerId, userId)))
+
+      if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" })
+
+      const [created] = await db
+        .insert(bases)
+        .values({
+          ownerId: userId,
+          workspaceId: input.workspaceId,
+          name: input.name,
+          color: randomPastelHex(),
+          lastModifiedAt: sql`now()`,
+          lastOpenedAt: sql`now()`,
+        })
+        .returning({
+          id: bases.id,
+          name: bases.name,
+          workspaceId: bases.workspaceId,
+          color: bases.color,
+        })
+
+      return created!
+    }),
+
 });

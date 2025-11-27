@@ -147,6 +147,7 @@ export const workspaces = createTable(
   ],
 );
 
+// db/schema.ts (or wherever your bases table is)
 export const bases = createTable(
   "bases",
   {
@@ -158,12 +159,13 @@ export const bases = createTable(
 
     name: text("name").notNull(),
 
+    // NEW
+    color: text("color").notNull(),
+
     starred: boolean("starred").notNull().default(false),
 
-    // this is your "last_modified"
-    lastModifiedAt: timestamp("last_modified_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    lastModifiedAt: timestamp("last_modified_at", { withTimezone: true }).defaultNow().notNull(),
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }).defaultNow().notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -172,6 +174,7 @@ export const bases = createTable(
     index("bases_workspace_idx").on(t.workspaceId),
     index("bases_owner_starred_idx").on(t.ownerId, t.starred),
     index("bases_last_modified_idx").on(t.ownerId, t.lastModifiedAt),
+    index("bases_last_opened_idx").on(t.ownerId, t.lastOpenedAt),
   ],
 );
 

@@ -62,6 +62,35 @@
 
   --line-height-3: 1.25;
   --line-height-4: 1.5;
+
+  /* Elevation */
+  --elevation-low: 0px 0px 1px rgba(0, 0, 0, 0.32),
+    0px 0px 2px rgba(0, 0, 0, 0.08),
+    0px 1px 3px rgba(0, 0, 0, 0.08);
+
+  --elevation-low-hover: 0px 0px 1px rgba(0, 0, 0, 0.32),
+    0px 0px 3px rgba(0, 0, 0, 0.11),
+    0px 1px 4px rgba(0, 0, 0, 0.12);
+
+  --elevation-medium: 0px 0px 1px 0px rgba(0, 0, 0, 0.24),
+    0px 0px 2px 0px rgba(0, 0, 0, 0.08),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08);
+
+  --elevation-medium-hover: 0px 0px 1px 0px rgba(0, 0, 0, 0.48),
+    0px 0px 2px 0px rgba(0, 0, 0, 0.08),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.12),
+    0px 2px 8px 0px rgba(0, 0, 0, 0.08);
+
+  --elevation-medium-right: 0px 0px 1px 0px rgba(0, 0, 0, 0.24),
+    0px 0px 2px 0px rgba(0, 0, 0, 0.08),
+    2px 0px 4px 0px rgba(0, 0, 0, 0.08);
+
+  --elevation-high: 0px 0px 1px rgba(0, 0, 0, 0.24),
+    0px 0px 2px rgba(0, 0, 0, 0.16),
+    0px 3px 4px rgba(0, 0, 0, 0.06),
+    0px 6px 8px rgba(0, 0, 0, 0.06),
+    0px 12px 16px rgba(0, 0, 0, 0.08),
+    0px 18px 32px rgba(0, 0, 0, 0.06);
 }
 
 /* 3. Global defaults */
@@ -77,6 +106,30 @@
   
   button:disabled {
     cursor: default;
+  }
+
+  /* utility classes (acts like tailwind extensions) */
+  .shadow-elevation-low {
+    box-shadow: var(--elevation-low);
+  }
+  .shadow-elevation-low-hover:hover {
+    box-shadow: var(--elevation-low-hover);
+  }
+  .shadow-elevation-medium {
+    box-shadow: var(--elevation-medium);
+  }
+  .shadow-elevation-medium-hover:hover {
+    box-shadow: var(--elevation-medium-hover);
+  }
+  .shadow-elevation-medium-right {
+    box-shadow: var(--elevation-medium-right);
+  }
+  .shadow-elevation-high {
+    box-shadow: var(--elevation-high);
+  }
+
+  .text-foreground-subtle {
+    color: var(--colors-foreground-subtle);
   }
 }
 

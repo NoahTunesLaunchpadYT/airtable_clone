@@ -6,6 +6,7 @@ import { db } from "~/server/db";
 import { faker } from "@faker-js/faker";
 import { createIndexesForColumn } from "~/server/db/columnIndexes";
 import { getTableName } from "drizzle-orm";
+import { randomPastelHex } from "~/server/utils/colors"
 
 export const demoRouter = createTRPCRouter({
   createDemoData: protectedProcedure.mutation(async ({ ctx }) => {
@@ -28,10 +29,23 @@ export const demoRouter = createTRPCRouter({
       const [baseStarred, baseEmpty] = await tx
         .insert(bases)
         .values([
-          { ownerId: userId, workspaceId: ws1.id, name: "Starred Base", starred: true },
-          { ownerId: userId, workspaceId: ws1.id, name: "Empty Base", starred: false },
+          {
+            ownerId: userId,
+            workspaceId: ws1.id,
+            name: "Starred Base",
+            starred: true,
+            color: randomPastelHex(),
+          },
+          {
+            ownerId: userId,
+            workspaceId: ws1.id,
+            name: "Empty Base",
+            starred: false,
+            color: randomPastelHex(),
+          },
         ])
-        .returning({ id: bases.id, name: bases.name });
+        .returning({ id: bases.id, name: bases.name, color: bases.color, lastOpenedAt: bases.lastOpenedAt });
+
 
       if (!baseStarred || !baseEmpty) throw new Error("Failed to create bases");
 
