@@ -98,7 +98,7 @@ export function ColumnMenu(props: {
   const hasSort = currentSort !== "none";
 
   return (
-    <div className="relative inline-flex items-center gap-2">
+    <div className="relative inline-flex items-center gap-2 z-[10000]">
       {(hasSort || hasFilter) && (
         <span className="text-[10px] text-gray-500">
           {hasSort ? (currentSort === "asc" ? "▲" : "▼") : ""}{hasFilter ? " •" : ""}

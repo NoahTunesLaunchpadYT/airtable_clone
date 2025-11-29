@@ -441,10 +441,9 @@ export default function GridBody(props: {
           style={{ overflowY: "visible" }}
           onScroll={props.onRightScroll}
         >
-          <div style={{ width: props.rightCols.length * RIGHT_COL_W }}>
-            <div style={{ height: props.totalSize }}>
-              <div style={{ height: props.paddingTop }} />
-
+        <div style={{ width: props.rightCols.length * RIGHT_COL_W }}>
+          <div style={{ height: props.totalSize + ROW_H }}>
+            <div style={{ height: props.paddingTop }} />
                 {props.virtualRows.map((vRow) => {
                   const absoluteIndex = vRow.index
                   const rel = absoluteIndex - props.effectiveWindowStart
@@ -533,6 +532,24 @@ export default function GridBody(props: {
               })}
 
               <div style={{ height: props.paddingBottom }} />
+                {/* NEW: create-row control (right pane) */}
+                <div
+                  className="flex cursor-pointer select-none"
+                  style={{ height: ROW_H }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={props.onCreateRowClick}
+                >
+                  <div
+                    className="flex items-center px-2 text-[12px] text-neutral-500"
+                    style={{
+                      ...cellBorder,
+                      width: props.rightCols.length * RIGHT_COL_W,
+                      borderRight: `${BORDER_PX}px solid ${BORDER_COLOR}`,
+                    }}
+                  >
+                    {/* you can mirror “Add new record” text here if you want */}
+                  </div>
+              </div>
             </div>
           </div>
         </div>

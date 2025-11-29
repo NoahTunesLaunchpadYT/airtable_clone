@@ -52,13 +52,13 @@ export default function TableShell(props: {
   baseColor: string
 }) {
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <div className="flex h-screen w-screen">
       {/* Universal left bar */}
       <div className="shrink-0">
         <UniversalLeftStatusBar />
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
         <AppTopBar 
         baseId={props.baseId} 
           tableId={props.tableId} 
@@ -75,7 +75,7 @@ export default function TableShell(props: {
         />
 
         {/* Main table region */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0">
           <div
             className="h-full"
             style={{
@@ -99,7 +99,7 @@ export default function TableShell(props: {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="ml-auto flex items-center gap-2 overflow-hidden">
+              <div className="ml-auto flex items-center gap-2">
                 <PillButton icon={<EyeOff className="h-4 w-4" />} label="Hide fields" />
                 <PillButton icon={<Filter className="h-4 w-4" />} label="Filter" />
                 <PillButton icon={<Group className="h-4 w-4" />} label="Group" />
@@ -115,7 +115,7 @@ export default function TableShell(props: {
             </div>
 
             {/* Left nav (views sidebar) */}
-            <nav className="overflow-hidden border-r bg-white">
+            <nav className="border-r bg-white">
               <div className="flex h-full flex-col p-3">
                 <button
                   type="button"
@@ -154,7 +154,7 @@ export default function TableShell(props: {
 
             {/* Main content (the actual table goes here) */}
             <main className="min-w-0 min-h-0 bg-neutral-50">
-              <div className="h-full min-h-0 overflow-hidden">
+              <div className="h-full min-h-0">
                 <TableClient tableId={props.tableId} columnsMeta={props.columnsMeta} />
               </div>
             </main>

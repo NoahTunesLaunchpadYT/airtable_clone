@@ -285,9 +285,9 @@ export default function TableClient({ tableId, columnsMeta }: TableClientProps) 
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
-      <div className="flex h-4 items-center justify-end px-3 text-[11px] text-neutral-600 bg-yellow-100 border-b">
+      {/* <div className="flex h-4 items-center justify-end px-3 text-[11px] text-neutral-600 bg-yellow-100 border-b">
         {anyError ? "Some changes failed to save" : anySaving ? "Saving…" : "All changes saved"}
-      </div>
+      </div> */}
 
       <GridHeader
         primaryCol={primaryCol}
