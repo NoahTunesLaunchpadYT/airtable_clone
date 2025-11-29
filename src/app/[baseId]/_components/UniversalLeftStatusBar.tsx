@@ -1,5 +1,6 @@
 import React from "react"
-import { Bell, HelpCircle, Link } from "lucide-react"
+import { Bell, HelpCircle } from "lucide-react"
+import Link from "next/link"
 
 export function UniversalLeftStatusBar() {
   return (
