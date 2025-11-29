@@ -1,128 +1,120 @@
-// app/[baseId]/[tableId]/tableClient.tsx
-
-"use client";
+"use client"
 
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
-  type SortingState
-} from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useRef, useState, useMemo, useEffect } from "react";
-import { api } from "~/trpc/react";
+  type SortingState,
+  type Row,
+} from "@tanstack/react-table"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { api } from "~/trpc/react"
+import GridHeader from "~/app/[baseId]/[tableId]/_components/GridHeader"
+import GridBody from "~/app/[baseId]/[tableId]/_components/GridBody"
+import { useWindowedRows } from "~/app/[baseId]/[tableId]/_components/useWindowedRows"
 
-type ColumnMeta = {
-  id: string;
-  name: string;
-  type: string;
-};
+export type ColumnMeta = { id: string; name: string; type: string }
+export type RowData = {
+  id: string
+  tableId: string
+  index: number
+  values: unknown
+  createdAt: Date | null
+}
+export type TableClientProps = { tableId: string; columnsMeta: ColumnMeta[] }
 
-type RowData = {
-  id: string;
-  tableId: string;
-  index: number;
-  values: unknown;
-  createdAt: Date | null;
-};
+type TextFilterOp = "contains" | "doesNotContain" | "is" | "isNot" | "isEmpty" | "isNotEmpty"
+type NumberFilterOp = "gt" | "lt" | "is" | "isNot" | "isEmpty" | "isNotEmpty"
+type FilterOp = TextFilterOp | NumberFilterOp
+type FilterInput = { columnId: string; operator: FilterOp; value?: string | number }
+type SortInput = { columnId: string; direction: "asc" | "desc" }
 
-type TableClientProps = {
-  tableId: string;
-  columnsMeta: ColumnMeta[];
-};
+export type SaveState = "idle" | "queued" | "saving" | "saved" | "error"
 
-type SortDirection = "none" | "asc" | "desc";
+export const BORDER_PX = 0.667
+export const BORDER_COLOR = "#dde1e3"
+export const DIVIDER_BORDER = "#d1d1d1"
 
-type TextFilterOp =
-  | "contains"
-  | "doesNotContain"
-  | "is"
-  | "isNot"
-  | "isEmpty"
-  | "isNotEmpty";
+export const ROW_H = 32
+export const ROW_GUTTER_W = 63.33
+export const PRIMARY_COL_W = 180
+export const LEFT_PANE_W = 243.33 // gutter + primary
+export const RIGHT_COL_W = 180
 
-type NumberFilterOp = "gt" | "lt" | "is" | "isNot" | "isEmpty" | "isNotEmpty";
+export const GUTTER_COL: ColumnMeta = { id: "__gutter__", name: "#", type: "gutter" }
 
-type FilterOp = TextFilterOp | NumberFilterOp;
+export default function TableClient({ tableId, columnsMeta }: TableClientProps) {
+  const windowSize = 300
+  const [startIndex, setStartIndex] = useState(0)
 
-type FilterInput = {
-  columnId: string;
-  operator: FilterOp;
-  value?: string | number;
-};
-
-type SortInput = {
-  columnId: string;
-  direction: "asc" | "desc";
-};
-
-const INDEX_COL_WIDTH = 40;   // px
-const DATA_COL_WIDTH = 530;   // px – change to 400 if you prefer
-
-export default function TableClient({
-  tableId,
-  columnsMeta
-}: TableClientProps) {
-  const windowSize = 300;
-  const [startIndex, setStartIndex] = useState(0);
-
-  const [sortInputs, setSortInputs] = useState<SortInput[]>([]);
-  const [filterInputs, setFilterInputs] = useState<FilterInput[]>([]);
+  const [sortInputs, setSortInputs] = useState<SortInput[]>([])
+  const [filterInputs, setFilterInputs] = useState<FilterInput[]>([])
 
   const sortingState = useMemo<SortingState>(
     () => sortInputs.map(s => ({ id: s.columnId, desc: s.direction === "desc" })),
-    [sortInputs]
-  );
+    [sortInputs],
+  )
 
-  const filtersForApi = useMemo(() => (filterInputs.length ? filterInputs : undefined), [filterInputs]);
-  const sortForApi = useMemo(() => (sortInputs.length ? sortInputs : undefined), [sortInputs]);
+  const filtersForApi = useMemo(
+    () => (filterInputs.length ? filterInputs : undefined),
+    [filterInputs],
+  )
+  const sortForApi = useMemo(() => (sortInputs.length ? sortInputs : undefined), [sortInputs])
 
-  const { data, isLoading, isFetching } = api.table.getRows.useQuery({
+  const { data, isFetching } = api.table.getRows.useQuery({
     tableId,
     startIndex,
     windowSize,
     filters: filtersForApi,
-    sort: sortForApi
-  });
+    sort: sortForApi,
+  })
 
-  const [lastData, setLastData] = useState<typeof data>();
-  const [lastWindowStart, setLastWindowStart] = useState(0);
+  const [lastData, setLastData] = useState<typeof data>()
+  const [lastWindowStart, setLastWindowStart] = useState(0)
 
   useEffect(() => {
     if (data) {
-      setLastData(data);
-      setLastWindowStart(data.windowStart);
+      setLastData(data)
+      setLastWindowStart(data.windowStart)
     }
-  }, [data]);
+  }, [data])
 
-  const effectiveData = data ?? lastData;
-  const effectiveWindowStart = data?.windowStart ?? lastWindowStart;
+  const effectiveData = data ?? lastData
+  const effectiveWindowStart = data?.windowStart ?? lastWindowStart
+  const rowsData = (effectiveData?.rows ?? []) as RowData[]
+  const totalCount = effectiveData?.totalCount ?? 0
 
-  const rowsData = (effectiveData?.rows ?? []) as RowData[];
-
-  const [totalCount, setTotalCount] = useState(0);
-
-  useEffect(() => {
-    if (effectiveData?.totalCount !== undefined) {
-      setTotalCount(effectiveData.totalCount);
-    }
-  }, [effectiveData?.totalCount]);
+  // column menu open state
+  const [columnsMetaState, setColumnsMetaState] = useState(columnsMeta)
+  useEffect(() => setColumnsMetaState(columnsMeta), [columnsMeta])
 
   const columns = useMemo<ColumnDef<RowData>[]>(
     () =>
-      columnsMeta.map(col => ({
+      columnsMetaState.map(col => ({
         id: col.id,
         header: col.name,
         accessorFn: (row: RowData) => {
-          const vals = row.values as Record<string, unknown> | null;
-          return vals?.[col.id];
+          const vals = row.values as Record<string, unknown> | null
+          return vals?.[col.id]
         },
-        enableSorting: true,
-        enableColumnFilter: true
       })),
-    [columnsMeta]
-  );
+    [columnsMetaState],
+  )
+
+
+  const createColumn = api.table.createColumn.useMutation({
+    onSuccess: async (col) => {
+      // append locally so UI updates immediately
+      if (!col) return
+      setColumnsMetaState((prev) => [...prev, { id: col.id, name: col.name, type: col.type }])
+
+      // optional: if your server loader depends on columns, also refresh invalidations
+      await utils.table.getRows.invalidate()
+    },
+  })
+
+  const primaryCol = columnsMetaState[0] ?? null
+  const rightCols = columnsMetaState.slice(1)
 
   const table = useReactTable<RowData>({
     data: rowsData,
@@ -130,362 +122,209 @@ export default function TableClient({
     state: { sorting: sortingState },
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
-    manualFiltering: true
-  });
+    manualFiltering: true,
+  })
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // vertical scroll container
+  const yScrollRef = useRef<HTMLDivElement | null>(null)
 
-  const rowVirtualizer = useVirtualizer({
-    count: totalCount,
-    getScrollElement: () => containerRef.current,
-    estimateSize: () => 24 // ~24px row height
-  });
+  const { rowVirtualizer, virtualRows, paddingTop, paddingBottom } = useWindowedRows({
+    totalCount,
+    startIndex,
+    setStartIndex,
+    windowSize,
+    isFetching,
+    rowHeight: ROW_H,
+    scrollRef: yScrollRef,
+  })
 
-  const virtualRows = rowVirtualizer.getVirtualItems();
 
-  const firstVirtual = virtualRows[0];
-  const lastVirtual = virtualRows[virtualRows.length - 1];
+  const [openCol, setOpenCol] = useState<string | null>(null)
 
-  const paddingTop = firstVirtual?.start ?? 0;
-  const paddingBottom = lastVirtual
-    ? rowVirtualizer.getTotalSize() - lastVirtual.end
-    : 0;
+  // create row / column
+  const utils = api.useUtils()
+
+  const [, setPendingFocus] = useState<null | { rowKey: string; colId: string }>(null)
+
+  const createRow = api.table.createRow.useMutation({
+    onSuccess: async (created) => {
+      // move window to include new row (append behaviour)
+      if (!created) return
+      const newAbsIndex = created.index
+      const newStart = Math.max(0, newAbsIndex - Math.floor(windowSize / 2))
+      setStartIndex(newStart)
+
+      await utils.table.getRows.invalidate()
+
+      // ask GridBody to focus primary cell once it exists in DOM
+      if (primaryCol) setPendingFocus({ rowKey: created.id, colId: primaryCol.id })
+    },
+  })
+
+  // horizontal scroll sync for header
+  const [rightScrollLeft, setRightScrollLeft] = useState(0)
+  const onRightScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setRightScrollLeft(e.currentTarget.scrollLeft)
+  }, [])
+
+  const toggleSort = useCallback((columnId: string) => {
+    setSortInputs(prev => {
+      const current = prev.find(s => s.columnId === columnId)?.direction ?? "none"
+      const rest = prev.filter(s => s.columnId !== columnId)
+      if (current === "none") return [...rest, { columnId, direction: "asc" }]
+      if (current === "asc") return [...rest, { columnId, direction: "desc" }]
+      return rest
+    })
+  }, [])
+
+  // ------------ editing (centralised so edits survive unmount while virtualising) ------------
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const draftsRef = useRef(drafts)
+  useEffect(() => {
+    draftsRef.current = drafts
+  }, [drafts])
+
+  const [saveState, setSaveState] = useState<Record<string, SaveState>>({})
+  const timeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({})
 
   useEffect(() => {
-    if (virtualRows.length === 0 || totalCount === 0) return;
-    if (isFetching) return;
+    const timeouts = timeoutsRef.current
 
-    const first = virtualRows[0];
-    const last = virtualRows[virtualRows.length - 1];
-
-    if (!first || !last) return;
-
-    const firstIndex = first.index;
-    const lastIndex = last.index;
-
-    const windowEnd = startIndex + windowSize;
-    const buffer = Math.floor(windowSize / 4);
-
-    const needShiftUp =
-      firstIndex < startIndex + buffer && startIndex > 0;
-
-    const needShiftDown =
-      lastIndex > windowEnd - buffer && windowEnd < totalCount;
-
-    if (!needShiftUp && !needShiftDown) {
-      return;
+    return () => {
+      for (const t of Object.values(timeouts)) {
+        if (t) clearTimeout(t)
+      }
     }
+  }, [])
 
-    const visibleCenter = Math.floor((firstIndex + lastIndex) / 2);
-    let newStart = visibleCenter - Math.floor(windowSize / 2);
+  const updateCell = api.table.updateCell.useMutation({
+    onSuccess: (_data, vars) => {
+      const key = `${vars.rowId}:${vars.columnId}`
+      setSaveState(prev => ({ ...prev, [key]: "saved" }))
+    },
+    onError: (_err, vars) => {
+      const key = `${vars.rowId}:${vars.columnId}`
+      setSaveState(prev => ({ ...prev, [key]: "error" }))
+    },
+  })
 
-    if (newStart < 0) newStart = 0;
-    const maxStart = Math.max(0, totalCount - windowSize);
-    if (newStart > maxStart) newStart = maxStart;
+  const hasDraft = (key: string) =>
+    Object.prototype.hasOwnProperty.call(draftsRef.current, key)
 
-    if (newStart !== startIndex) {
-      setStartIndex(newStart);
-    }
-  }, [virtualRows, startIndex, windowSize, totalCount, isFetching]);
+  const commitCell = useCallback(
+    (rowId: string, columnId: string) => {
+      const key = `${rowId}:${columnId}`
 
-  const [openCol, setOpenCol] = useState<string | null>(null);
+      // ✅ If the user never edited this cell, do NOT write anything.
+      if (!hasDraft(key)) return
+
+      const raw = draftsRef.current[key] ?? ""
+
+      setSaveState((prev) => ({ ...prev, [key]: "saving" }))
+      updateCell.mutate({ rowId, columnId, value: raw })
+    },
+    [updateCell],
+  )
+
+  const queueCommit = useCallback(
+    (rowId: string, columnId: string) => {
+      const key = `${rowId}:${columnId}`
+
+      const existing = timeoutsRef.current[key]
+      if (existing) clearTimeout(existing)
+
+      setSaveState(prev => ({ ...prev, [key]: "queued" }))
+
+      timeoutsRef.current[key] = setTimeout(() => {
+        commitCell(rowId, columnId)
+      }, 500)
+    },
+    [commitCell],
+  )
+
+  const flushCommit = useCallback(
+    (rowId: string, columnId: string) => {
+      const key = `${rowId}:${columnId}`
+      const existing = timeoutsRef.current[key]
+      if (existing) clearTimeout(existing)
+      timeoutsRef.current[key] = undefined
+      commitCell(rowId, columnId)
+    },
+    [commitCell],
+  )
+
+  const anySaving = Object.values(saveState).some(s => s === "queued" || s === "saving")
+  const anyError = Object.values(saveState).some(s => s === "error")
+
+  const setDraft = useCallback((rowId: string, colId: string, next: string) => {
+    setDrafts(prev => ({ ...prev, [`${rowId}:${colId}`]: next }))
+  }, [])
+
+  const getCellString = useCallback(
+    (row: Row<RowData> | undefined, rowId: string, col: ColumnMeta) => {
+      if (col.id === "__gutter__") return ""
+
+      const key = `${rowId}:${col.id}`
+      const draft = drafts[key]
+      if (draft !== undefined) return draft
+
+      const v = row?.getValue(col.id)
+
+      if (v === null || v === undefined) return ""
+
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+        return String(v)
+      }
+
+      // Fallback for objects/arrays/etc – choose what you prefer:
+      // return JSON.stringify(v)
+      return ""
+    },
+    [drafts],
+  )
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b p-2 text-sm">
-        <span>
-          {isLoading && totalCount === 0
-            ? "Loading..."
-            : `Rows: ${totalCount} (window ${startIndex}–${
-                startIndex + rowsData.length - 1
-              })`}
-        </span>
-        {isFetching && totalCount > 0 && (
-          <span className="text-xs text-gray-500">
-            Updating window...
-          </span>
-        )}
+    <div className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex h-4 items-center justify-end px-3 text-[11px] text-neutral-600 bg-yellow-100 border-b">
+        {anyError ? "Some changes failed to save" : anySaving ? "Saving…" : "All changes saved"}
       </div>
 
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-auto"
-      >
-        <div style={{ height: rowVirtualizer.getTotalSize() }}>
-          <div style={{ paddingTop, paddingBottom }}>
-            <table className="border-collapse text-xs">
-              {/* fixed pixel widths for columns */}
-              <colgroup>
-                {/* index column */}
-                <col style={{ width: INDEX_COL_WIDTH }} />
-                {/* data columns */}
-                {columnsMeta.map(col => (
-                  <col
-                    key={col.id}
-                    style={{ width: DATA_COL_WIDTH }}
-                  />
-                ))}
-              </colgroup>
-
-              <thead className="sticky top-0 bg-gray-100">
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id} className="h-6">
-                    <th className="border-b px-2 text-right text-[11px] text-gray-500">
-                      #
-                    </th>
-                    {headerGroup.headers.map(header => {
-                      const colMeta = columnsMeta.find(c => c.id === header.column.id);
-                      const isSorted = header.column.getIsSorted();
-
-                      return (
-                        <th key={header.id} className="border-b px-2 text-left">
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className="cursor-pointer select-none"
-                              onClick={header.column.getToggleSortingHandler()}
-                            >
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              {isSorted === "asc" && " ▲"}
-                              {isSorted === "desc" && " ▼"}
-                            </span>
-
-                              {colMeta && (
-                                <ColumnMenu
-                                  col={colMeta}
-                                  openCol={openCol}
-                                  setOpenCol={setOpenCol}
-                                  sortInputs={sortInputs}
-                                  setSortInputs={setSortInputs}
-                                  filterInputs={filterInputs}
-                                  setFilterInputs={setFilterInputs}
-                                />
-                              )}
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {virtualRows.map(vRow => {
-                  const absoluteIndex = vRow.index;
-                  const rel = absoluteIndex - effectiveWindowStart;
-
-                  const row =
-                    rel >= 0 && rel < table.getRowModel().rows.length
-                      ? table.getRowModel().rows[rel]
-                      : null;
-
-                  if (!row) {
-                    return (
-                      <tr key={`placeholder-${absoluteIndex}`} className="h-6 border-b">
-                        <td className="px-2 text-right text-[11px] text-gray-500">
-                          {absoluteIndex + 1}
-                        </td>
-                        <td
-                          colSpan={columnsMeta.length}
-                          className="px-2 text-[11px] text-gray-400"
-                        >
-                          Loading...
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return (
-                    <tr key={row.original.id} className="h-6 border-b">
-                      <td className="px-2 text-right text-[11px] text-gray-500">
-                        {absoluteIndex + 1}
-                      </td>
-                      {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className="px-2">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-  function ColumnMenu(props: {
-    col: ColumnMeta;
-    openCol: string | null;
-    setOpenCol: React.Dispatch<React.SetStateAction<string | null>>;
-    sortInputs: SortInput[];
-    setSortInputs: React.Dispatch<React.SetStateAction<SortInput[]>>;
-    filterInputs: FilterInput[];
-    setFilterInputs: React.Dispatch<React.SetStateAction<FilterInput[]>>;
-  }) {
-    const isNumber = props.col.type === "number";
-
-    const currentSort: SortDirection =
-      props.sortInputs.find(s => s.columnId === props.col.id)?.direction ?? "none";
-    const currentFilter = props.filterInputs.find(f => f.columnId === props.col.id);
-    const currentOp = currentFilter?.operator ?? (isNumber ? ("gt" as FilterOp) : ("contains" as FilterOp));
-    const needsValue = currentOp !== "isEmpty" && currentOp !== "isNotEmpty";
-
-    const setSortDir = (dir: SortDirection) => {
-      props.setSortInputs(prev => {
-        const rest = prev.filter(s => s.columnId !== props.col.id);
-        if (dir === "none") return rest;
-        return [...rest, { columnId: props.col.id, direction: dir }];
-      });
-    };
-
-    const setFilterOp = (op: FilterOp) => {
-      props.setFilterInputs(prev => {
-        const rest = prev.filter(f => f.columnId !== props.col.id);
-
-        // treat "none" via clear button, not here
-        if (op === "isEmpty" || op === "isNotEmpty") {
-          return [...rest, { columnId: props.col.id, operator: op }];
+      <GridHeader
+        primaryCol={primaryCol}
+        rightCols={rightCols}
+        rightScrollLeft={rightScrollLeft}
+        getIsSorted={(colId) => table.getColumn(colId)?.getIsSorted() ?? false}
+        toggleSort={toggleSort}
+        openCol={openCol}
+        setOpenCol={setOpenCol}
+        sortInputs={sortInputs}
+        setSortInputs={setSortInputs}
+        filterInputs={filterInputs}
+        setFilterInputs={setFilterInputs}
+        onCreateColumn={(payload) =>
+          createColumn.mutate({ tableId, ...payload })
         }
+        creatingColumn={createColumn.isPending}
+      />
 
-        const prevVal = prev.find(f => f.columnId === props.col.id)?.value;
-        return [...rest, { columnId: props.col.id, operator: op, value: prevVal ?? "" }];
-      });
-    };
-
-    const setFilterValue = (raw: string) => {
-      props.setFilterInputs(prev => {
-        const existing = prev.find(f => f.columnId === props.col.id);
-        const op = existing?.operator ?? currentOp; // op is already FilterOp
-
-        // if operator does not need a value, ignore input
-        if (op === "isEmpty" || op === "isNotEmpty") return prev;
-
-        const trimmed = raw.trim();
-        if (!trimmed) return prev.filter(f => f.columnId !== props.col.id); // empty clears
-
-        const parsed: string | number = isNumber ? Number(trimmed) : trimmed;
-        if (isNumber && !Number.isFinite(parsed)) return prev;
-
-        const rest = prev.filter(f => f.columnId !== props.col.id);
-        return [...rest, { columnId: props.col.id, operator: op, value: parsed }];
-      });
-    };
-
-    const clearFilter = () => props.setFilterInputs(prev => prev.filter(f => f.columnId !== props.col.id));
-    const clearSort = () => setSortDir("none");
-
-    const isOpen = props.openCol === props.col.id;
-    const hasFilter = !!props.filterInputs.find(f => f.columnId === props.col.id);
-    const hasSort = currentSort !== "none";
-
-    return (
-      <div className="relative inline-flex items-center gap-2">
-        {(hasSort || hasFilter) && (
-          <span className="text-[10px] text-gray-500">
-            {hasSort ? (currentSort === "asc" ? "▲" : "▼") : ""}{hasFilter ? " •" : ""}
-          </span>
-        )}
-
-        <button
-          type="button"
-          className="rounded border px-1 text-[11px] text-gray-600 hover:bg-gray-50"
-          onClick={() => props.setOpenCol(v => (v === props.col.id ? null : props.col.id))}
-        >
-          ⋯
-        </button>
-
-        {isOpen && (
-          <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded border bg-white p-2 shadow-lg">
-            <div className="mb-2 text-[11px] font-medium text-gray-700">{props.col.name}</div>
-
-            <div className="mb-2">
-              <div className="mb-1 text-[10px] text-gray-500">Sort</div>
-              <select
-                className="h-7 w-full rounded border px-2 text-[11px]"
-                value={currentSort}
-                onChange={e => setSortDir(e.target.value as SortDirection)}
-              >
-                <option value="none">None</option>
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-
-              {hasSort && (
-                <button
-                  type="button"
-                  className="mt-1 text-[10px] text-gray-500 hover:text-gray-700"
-                  onClick={clearSort}
-                >
-                  Clear sort
-                </button>
-              )}
-            </div>
-
-            <div className="mb-2">
-              <div className="mb-1 text-[10px] text-gray-500">Filter</div>
-
-              <select
-                className="h-7 w-full rounded border px-2 text-[11px]"
-                value={currentFilter?.operator ?? ""}
-                onChange={e => setFilterOp(e.target.value as FilterOp)}
-              >
-                <option value="" disabled>
-                  Select…
-                </option>
-
-                {!isNumber && (
-                  <>
-                    <option value="contains">Contains</option>
-                    <option value="doesNotContain">Does not contain</option>
-                  </>
-                )}
-
-                <option value="is">Is</option>
-                <option value="isNot">Is not</option>
-                {isNumber && (
-                  <>
-                    <option value="gt">Greater than</option>
-                    <option value="lt">Less than</option>
-                  </>
-                )}
-                <option value="isEmpty">Is empty</option>
-                <option value="isNotEmpty">Is not empty</option>
-              </select>
-
-              {needsValue && (
-                <input
-                  className="mt-2 h-7 w-full rounded border px-2 text-[11px]"
-                  type={isNumber ? "number" : "text"}
-                  value={String(currentFilter?.value ?? "")}
-                  onChange={e => setFilterValue(e.target.value)}
-                  placeholder="Value…"
-                />
-              )}
-
-              {hasFilter && (
-                <button
-                  type="button"
-                  className="mt-1 text-[10px] text-gray-500 hover:text-gray-700"
-                  onClick={clearFilter}
-                >
-                  Clear filter
-                </button>
-              )}
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="rounded bg-gray-100 px-2 py-1 text-[11px] hover:bg-gray-200"
-                onClick={() => props.setOpenCol(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+      <GridBody
+        yScrollRef={yScrollRef}
+        onRightScroll={onRightScroll}
+        effectiveWindowStart={effectiveWindowStart}
+        tableRows={table.getRowModel().rows}
+        primaryCol={primaryCol}
+        rightCols={rightCols}
+        virtualRows={virtualRows}
+        totalSize={rowVirtualizer.getTotalSize()}
+        paddingTop={paddingTop}
+        paddingBottom={paddingBottom}
+        getCellString={getCellString}
+        setDraft={setDraft}
+        queueCommit={queueCommit}
+        flushCommit={flushCommit}
+        onCreateRowClick={() => createRow.mutate({ tableId })}
+        creatingRow={createRow.isPending}
+      />
+    </div>
+  )
+}

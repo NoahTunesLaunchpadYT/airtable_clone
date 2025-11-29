@@ -68,6 +68,12 @@ export default function AirtableHomeClient({ userName }: Props) {
     },
   })
 
+  const deleteBaseM = api.base.deleteBase.useMutation({
+    onSuccess: async () => {
+      await basesQ.refetch()
+    },
+  })
+
   const markOpenedM = api.base.markOpened.useMutation({
     onSuccess: async () => {
       await basesQ.refetch()
@@ -93,6 +99,15 @@ export default function AirtableHomeClient({ userName }: Props) {
   }, [bases, selectedWorkspaceId, activeNav])
 
   const openedLabel = OPENED_LABEL[openedFilter]
+  
+  const createBaseM = api.base.createBase.useMutation({
+    onSuccess: async (res) => {
+      await Promise.all([workspacesQ.refetch(), basesQ.refetch()])
+      setActiveNav("home")
+      setSelectedWorkspaceId(null)
+      router.push(`/${res.baseId}`)
+    },
+  })
 
   return (
     <div className="h-dvh w-full bg-[#f6f6f8] text-[#1f1f24]">
@@ -126,19 +141,18 @@ export default function AirtableHomeClient({ userName }: Props) {
         <Sidebar
           collapsed={sidebarCollapsed}
           activeNav={activeNav}
-          onChangeNav={nav => {
-            setActiveNav(nav)
-            if (nav !== "home") setOpenedFilter("anytime")
-          }}
+          onChangeNav={setActiveNav}
           selectedWorkspaceId={selectedWorkspaceId}
           onSelectWorkspace={setSelectedWorkspaceId}
           workspaces={workspaces}
           workspacesLoading={workspacesQ.isLoading}
+          onCreateBase={() => createBaseM.mutate({})}
+          createPending={createBaseM.isPending}
         />
 
         <main className="flex-1 overflow-auto bg-[#f9fafb]">
           <div className="mx-auto flex h-full w-full max-w-[1920px] flex-col px-12 pb-0 pt-8">
-            <h1 className="pb-6 text-left text-[22px] font-[675] leading-[1.25] text-foreground-default">
+            <h1 className="pb-6 text-left text-[27px] font-[675] leading-[1.25] text-foreground-default">
               {activeNav === "home" ? "Home" : "Starred"}
             </h1>
 
@@ -173,7 +187,9 @@ export default function AirtableHomeClient({ userName }: Props) {
                 isFetching={basesQ.isFetching}
                 onOpenBase={onOpenBase}
                 onToggleStar={baseId => toggleStarM.mutate({ baseId })}
+                onDelete={baseId => deleteBaseM.mutate({ baseId })}
                 starPending={toggleStarM.isPending}
+                deletePending={deleteBaseM.isPending}
               />
             </div>
           </div>

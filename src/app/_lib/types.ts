@@ -13,4 +13,4 @@ export type BaseLite = {
   lastModifiedAt: Date
 }
 
-export type NavKey = "home" | "starred" | "recents"
+export type NavKey = "home" | "starred" | "workspaces"

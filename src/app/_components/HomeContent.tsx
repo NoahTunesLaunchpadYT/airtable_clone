@@ -14,7 +14,9 @@ export function HomeContent(props: {
   onChangeOpenedFilter: (v: OpenedFilter) => void
   onOpenBase: (baseId: string) => void
   onToggleStar: (baseId: string) => void
+  onDelete: (baseId: string) => void
   starPending: boolean
+  deletePending: boolean
 }) {
   const label =
     props.openedFilter === "anytime"
@@ -56,7 +58,9 @@ export function HomeContent(props: {
           isFetching={props.isFetching}
           onOpenBase={props.onOpenBase}
           onToggleStar={props.onToggleStar}
+          onDelete={props.onDelete}
           starPending={props.starPending}
+          deletePending={props.deletePending}
         />
       </div>
     </div>

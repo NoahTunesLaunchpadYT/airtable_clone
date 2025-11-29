@@ -73,7 +73,9 @@ export function BaseGroups(props: {
   isFetching: boolean
   onOpenBase: (baseId: string) => void
   onToggleStar: (baseId: string) => void
+  onDelete: (baseId: string) => void
   starPending: boolean
+  deletePending: boolean
 }) {
   const workspaceNameById = new Map(props.workspaces.map(w => [w.id, w.name]))
 
@@ -127,7 +129,9 @@ export function BaseGroups(props: {
                   workspaceName={workspaceName}
                   onOpen={() => props.onOpenBase(base.id)}
                   onToggleStar={() => props.onToggleStar(base.id)}
+                  onDelete={() => props.onDelete(base.id)}
                   starPending={props.starPending}
+                  deletePending={props.deletePending}
                 />
               ))}
             </div>
@@ -179,7 +183,9 @@ export function BaseGroups(props: {
                       workspaceName={workspaceName}
                       onOpen={() => props.onOpenBase(base.id)}
                       onToggleStar={() => props.onToggleStar(base.id)}
+                      onDelete={() => props.onDelete(base.id)}
                       starPending={props.starPending}
+                      deletePending={props.deletePending}
                     />
                   ))}
                 </div>

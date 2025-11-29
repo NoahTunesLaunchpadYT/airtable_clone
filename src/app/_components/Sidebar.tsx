@@ -2,8 +2,24 @@
 
 import type { NavKey, WorkspaceLite } from "~/app/_lib/types"
 import { SidebarItem } from "./SidebarItem"
-import { WorkspaceRow } from "./WorkspaceRow"
-import { IconHome, IconPlus, IconSettings, IconStar } from "~/app/_components/AirtableIcons"
+import { IconHome, IconStar } from "~/app/_components/AirtableIcons"
+
+function ChevronDownIcon(props: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={props.className}
+    >
+      <path
+        fill="currentColor"
+        d="M4.47 6.47a.75.75 0 0 1 1.06 0L8 8.94l2.47-2.47a.75.75 0 1 1 1.06 1.06L8.53 10.53a.75.75 0 0 1-1.06 0L4.47 7.53a.75.75 0 0 1 0-1.06Z"
+      />
+    </svg>
+  )
+}
 
 export function Sidebar(props: {
   collapsed: boolean
@@ -13,16 +29,21 @@ export function Sidebar(props: {
   onSelectWorkspace: (id: string | null) => void
   workspaces: WorkspaceLite[]
   workspacesLoading: boolean
+
+  onCreateBase: () => void
+  createPending: boolean
 }) {
   return (
     <aside
       className={[
-        "border-r border-[#e3e3e7] bg-white",
-        props.collapsed ? "w-[56px]" : "w-[280px]"
+        "bg-white border-r-[0.667px] border-[#e3e3e7]",
+        "pt-3 px-3 pb-3", // top padding 20, sides 12
+        props.collapsed ? "w-[56px]" : "w-[299.333px]", // 275.333 inner + 24 padding
       ].join(" ")}
     >
       <div className="flex h-full flex-col">
-        <div className="px-2 py-2">
+        {/* top */}
+        <div className="flex flex-col">
           <SidebarItem
             collapsed={props.collapsed}
             active={props.activeNav === "home"}
@@ -30,6 +51,7 @@ export function Sidebar(props: {
             label="Home"
             onClick={() => props.onChangeNav("home")}
           />
+
           <SidebarItem
             collapsed={props.collapsed}
             active={props.activeNav === "starred"}
@@ -37,57 +59,30 @@ export function Sidebar(props: {
             label="Starred"
             onClick={() => props.onChangeNav("starred")}
           />
-        </div>
 
-        <div className="px-2">
-          <div className="my-2 h-px bg-[#ededf2]" />
-        </div>
-
-        <div className="flex items-center justify-between px-3 py-2">
-          {!props.collapsed && (
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b6b76]">Workspaces</div>
-          )}
-          <button
-            type="button"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-[#f2f2f5]"
-            aria-label="Create workspace"
-            title="Create workspace"
-          >
-            <IconPlus />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto px-2 pb-3">
-          <WorkspaceRow
+          <SidebarItem
             collapsed={props.collapsed}
-            name="All workspaces"
-            active={!props.selectedWorkspaceId}
-            onClick={() => props.onSelectWorkspace(null)}
+            active={props.activeNav === "workspaces"}
+            icon={<span className="text-[14px] leading-none">W</span>}
+            label="Workspaces"
+            rightIcon={<ChevronDownIcon className="text-[#6b6b76]" />}
+            onClick={() => props.onChangeNav("workspaces")}
           />
-
-          {props.workspacesLoading && !props.collapsed && (
-            <div className="px-2 py-2 text-[12px] text-[#6b6b76]">Loading workspaces...</div>
-          )}
-
-          {props.workspaces.map(w => (
-            <WorkspaceRow
-              key={w.id}
-              collapsed={props.collapsed}
-              name={w.name}
-              active={props.selectedWorkspaceId === w.id}
-              onClick={() => props.onSelectWorkspace(w.id)}
-            />
-          ))}
         </div>
 
-        <div className="border-t border-[#e3e3e7] p-2">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-[13px] text-[#3a3a42] hover:bg-[#f2f2f5]"
-          >
-            <IconSettings />
-            {!props.collapsed && <span>Settings</span>}
-          </button>
+        {/* bottom */}
+        <div className="mt-auto">
+          <div className="h-px w-full bg-[#e3e3e7]" />
+          <div className="mx-0 mb-2 mt-4 px-0">
+            <button
+              type="button"
+              onClick={props.onCreateBase}
+              disabled={props.createPending}
+              className="flex h-8 w-full items-center justify-center rounded-[6px] bg-[#1b72e8] px-3 text-[13px] font-semibold text-white hover:bg-[#1663cc] disabled:opacity-60"
+            >
+              + Create
+            </button>
+          </div>
         </div>
       </div>
     </aside>

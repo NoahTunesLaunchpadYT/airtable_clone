@@ -11,6 +11,25 @@ function baseInitials(name: string) {
   return `${a}${b}`.trim()
 }
 
+function IconTrash(props: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      className={props.className}
+      aria-hidden="true"
+      focusable="false"
+      style={{ shapeRendering: "geometricPrecision" }}
+    >
+      <path
+        fill="currentColor"
+        d="M6 2.75c0-.414.336-.75.75-.75h2.5c.414 0 .75.336.75.75V3.5H6v-.75ZM4.5 3.5V2.75C4.5 1.784 5.284 1 6.25 1h3.5c.966 0 1.75.784 1.75 1.75V3.5H14a.75.75 0 0 1 0 1.5h-.72l-.56 8.02A2 2 0 0 1 10.73 15H5.27a2 2 0 0 1-1.99-1.98L2.72 5H2a.75.75 0 0 1 0-1.5h2.5Zm3.5 0h0Zm3.78 1.5H4.22l.56 7.94c.02.33.29.56.49.56h5.46c.2 0 .47-.23.49-.56l.56-7.94ZM6.25 6.5c.414 0 .75.336.75.75v4a.75.75 0 0 1-1.5 0v-4c0-.414.336-.75.75-.75Zm3.5 0c.414 0 .75.336.75.75v4a.75.75 0 0 1-1.5 0v-4c0-.414.336-.75.75-.75Z"
+      />
+    </svg>
+  )
+}
+
 export function BaseCard(props: {
   base: {
     id: string
@@ -23,7 +42,9 @@ export function BaseCard(props: {
   workspaceName: string
   onOpen: () => void
   onToggleStar: () => void
+  onDelete: () => void
   starPending: boolean
+  deletePending: boolean
 }) {
   const b = props.base
   const openedAt = b.lastOpenedAt ?? b.lastModifiedAt
@@ -32,7 +53,7 @@ export function BaseCard(props: {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => props.onOpen()} // ensure it always calls the handler
+      onClick={() => props.onOpen()}
       onKeyDown={e => {
         if (e.key === "Enter" || e.key === " ") props.onOpen()
       }}
@@ -54,24 +75,46 @@ export function BaseCard(props: {
         <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 truncate text-[14px] font-semibold leading-5 text-foreground-default">{b.name}</div>
 
-          <button
-            type="button"
-            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#f2f2f5]"
-            onClick={e => {
-              e.preventDefault()
-              e.stopPropagation() // star should NOT navigate
-              props.onToggleStar()
-            }}
-            onPointerDown={e => {
-              e.preventDefault()
-              e.stopPropagation()
-            }}
-            aria-label={b.starred ? "Unstar base" : "Star base"}
-            title={b.starred ? "Unstar" : "Star"}
-            disabled={props.starPending}
-          >
-            <IconStarFilled active={!!b.starred} />
-          </button>
+          {/* actions */}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#f2f2f5]"
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                props.onToggleStar()
+              }}
+              onPointerDown={e => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              aria-label={b.starred ? "Unstar base" : "Star base"}
+              title={b.starred ? "Unstar" : "Star"}
+              disabled={props.starPending}
+            >
+              <IconStarFilled active={!!b.starred} />
+            </button>
+
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#f2f2f5]"
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                props.onDelete()
+              }}
+              onPointerDown={e => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              aria-label="Delete base"
+              title="Delete"
+              disabled={props.deletePending}
+            >
+              <IconTrash className="h-4 w-4 text-foreground-subtle" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-1 flex min-w-0 items-center justify-between gap-3 text-[13px] leading-4 text-foreground-subtle">

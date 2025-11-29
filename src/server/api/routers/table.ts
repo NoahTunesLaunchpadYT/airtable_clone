@@ -26,12 +26,7 @@ const sortSchema = z.object({
   direction: z.enum(["asc", "desc"])
 });
 
-const createColumnSchema = z.object({
-  tableId: z.string().uuid(),
-  name: z.string().min(1),
-  type: z.enum(["text", "number", "singleSelect", "attachment"]),
-  orderIndex: z.number().int().min(0).default(0)
-});
+const columnType = z.enum(["text", "number", "singleSelect", "attachment"])
 
 const uuidRe =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -55,38 +50,78 @@ export const tableRouter = createTRPCRouter({
         .orderBy(columns.orderIndex);
     }),
 
+  createRow: protectedProcedure
+    .input(z.object({ tableId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Optional: verify the user owns the table via joins (base -> owner/workspace)
+      const res = await ctx.db
+        .select({
+          maxIndex: sql<number | null>`max(${rows.index})`,
+        })
+        .from(rows)
+        .where(eq(rows.tableId, input.tableId))
+
+      const maxIndex = res[0]?.maxIndex ?? null
+      const nextIndex = (maxIndex ?? -1) + 1
+
+      const [inserted] = await ctx.db
+        .insert(rows)
+        .values({
+          tableId: input.tableId,
+          index: nextIndex,
+          values: {}, // do NOT prefill every column key
+        })
+        .returning({ id: rows.id, index: rows.index })
+
+      return inserted
+    }),
+
   createColumn: protectedProcedure
-    .input(createColumnSchema)
-    .mutation(async ({ input }) => {
-      const [col] = await db
+    .input(
+      z.object({
+        tableId: z.string().uuid(),
+        name: z.string().trim().min(1).max(120),
+        type: columnType, // we will call with only "text" | "number" from UI
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const res = await ctx.db
+        .select({
+          maxIndex: sql<number | null>`max(${columns.orderIndex})`,
+        })
+        .from(columns)
+        .where(eq(columns.tableId, input.tableId))
+
+      const maxOrder = res[0]?.maxIndex ?? null
+      const nextOrder = (maxOrder ?? -1) + 1
+
+      const [inserted] = await ctx.db
         .insert(columns)
         .values({
           tableId: input.tableId,
           name: input.name,
           type: input.type,
-          orderIndex: input.orderIndex
+          orderIndex: nextOrder,
+          isHidden: false,
+          config: null,
         })
         .returning({
           id: columns.id,
-          tableId: columns.tableId,
-          type: columns.type
-        });
+          name: columns.name,
+          type: columns.type,
+          orderIndex: columns.orderIndex,
+        })
 
-      if (!col) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create column"
+      // Create indexes for this new column
+      if (inserted) {
+        await createIndexesForColumn({
+          tableId: input.tableId,
+          columnId: inserted.id,
+          type: input.type
         });
       }
 
-      // Create indexes for this new column
-      await createIndexesForColumn({
-        tableId: col.tableId,
-        columnId: col.id,
-        type: col.type
-      });
-
-      return col;
+      return inserted
     }),
 
   getRows: protectedProcedure
@@ -185,7 +220,6 @@ export const tableRouter = createTRPCRouter({
         }
       }
 
-
       const [{ count } = { count: 0 }] = await db
         .select({ count: sql<number>`cast(count(*) as int)` })
         .from(rows)
@@ -247,5 +281,68 @@ export const tableRouter = createTRPCRouter({
         .offset(safeFrom);
 
       return { rows: result, totalCount, windowStart: safeFrom };
-    })
+    }),
+    
+  updateCell: protectedProcedure
+    .input(
+      z.object({
+        rowId: z.string().uuid(),
+        columnId: z.string().uuid(),
+        value: z.union([z.string(), z.number(), z.null()]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.query.rows.findFirst({
+        where: eq(rows.id, input.rowId),
+      })
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Row not found" })
+
+      const col = await ctx.db.query.columns.findFirst({
+        where: eq(columns.id, input.columnId),
+      })
+      if (!col) throw new TRPCError({ code: "NOT_FOUND", message: "Column not found" })
+
+      if (col.tableId !== row.tableId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Column does not belong to this row" })
+      }
+
+      // Adjust these enum checks to match your columnTypeEnum values.
+      // Commonly they are "TEXT" | "NUMBER".
+      const colType = col.type // "text" | "number" | "singleSelect" | "attachment"
+
+      let nextVal: unknown = input.value
+
+      if (colType === "number") {
+        if (input.value == null) {
+          nextVal = null
+        } else if (typeof input.value === "number") {
+          nextVal = Number.isFinite(input.value) ? input.value : null
+        } else {
+          const n = Number(String(input.value).trim())
+          nextVal = Number.isFinite(n) ? n : null
+        }
+      }
+
+      if (colType === "text" || colType === "singleSelect") {
+        if (input.value == null) {
+          nextVal = null
+        } else {
+          const s = String(input.value)
+          nextVal = s.trim() === "" ? null : s
+        }
+      }
+
+      // attachments should be JSON (array/object). Let it pass through as-is:
+      if (colType === "attachment") {
+        // optionally normalise empty string -> null
+        if (input.value === "") nextVal = null
+      }
+
+      const current = (row.values ?? {}) as Record<string, unknown>
+      const nextValues = { ...current, [input.columnId]: nextVal }
+
+      await ctx.db.update(rows).set({ values: nextValues }).where(eq(rows.id, input.rowId))
+
+      return { ok: true }
+    }),
 });

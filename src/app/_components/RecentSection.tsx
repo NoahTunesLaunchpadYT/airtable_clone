@@ -9,7 +9,9 @@ export function RecentSection(props: {
   onViewAll: () => void
   onOpenBase: (baseId: string) => void
   onToggleStar: (baseId: string) => void
+  onDelete: (baseId: string) => void
   starPending: boolean
+  deletePending: boolean
 }) {
   return (
     <section className="mb-8">
@@ -28,7 +30,9 @@ export function RecentSection(props: {
             workspaceName={props.workspaces.find(w => w.id === b.workspaceId)?.name ?? "Workspace"}
             onOpen={() => props.onOpenBase(b.id)}
             onToggleStar={() => props.onToggleStar(b.id)}
+            onDelete={() => props.onDelete(b.id)}
             starPending={props.starPending}
+            deletePending={props.deletePending}
           />
         ))}
       </div>

@@ -145,6 +145,33 @@ export function TopBar(props: {
     return () => window.removeEventListener("keydown", onGlobalKeyDown)
   }, [])
 
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileBtnRef = useRef<HTMLButtonElement | null>(null)
+  const profileMenuRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+    if (!profileOpen) return
+
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (profileBtnRef.current?.contains(t)) return
+      if (profileMenuRef.current?.contains(t)) return
+      setProfileOpen(false)
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProfileOpen(false)
+    }
+
+    window.addEventListener("pointerdown", onPointerDown)
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown)
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [profileOpen])
+
+
   return (
     <>
       <header className="sticky top-0 z-50 box-border h-[56px] w-full bg-white shadow-elevation-low">
@@ -232,14 +259,49 @@ export function TopBar(props: {
                 <IconBell className="h-[20.8px] w-[20.8px]" />
               </button>
 
-              <button
-                type="button"
-                className="ml-2 flex h-7 w-[27.333px] items-center justify-center rounded-full bg-[#7c3aed] text-[12px] font-semibold text-white shadow-elevation-low shadow-elevation-low-hover border border-white"
-                aria-label="Account"
-                title={props.userName}
-              >
-                {props.userName.slice(0, 1).toUpperCase()}
-              </button>
+              <div className="relative ml-2">
+                <button
+                  ref={profileBtnRef}
+                  type="button"
+                  className="flex h-7 w-[27.333px] items-center justify-center rounded-full bg-[#7c3aed] text-[12px] font-semibold text-white shadow-elevation-low shadow-elevation-low-hover border border-white"
+                  aria-label="Account"
+                  title={props.userName}
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
+                  onClick={() => setProfileOpen(v => !v)}
+                >
+                  {props.userName.slice(0, 1).toUpperCase()}
+                </button>
+
+                {profileOpen && (
+                  <div
+                    ref={profileMenuRef}
+                    role="menu"
+                    aria-label="Account menu"
+                    className="absolute right-0 top-[calc(100%+8px)] z-[300] w-[240px] overflow-hidden rounded-[6px] bg-white shadow-elevation-high"
+                  >
+                    <div className="px-4 py-3">
+                      <div className="text-[12px] text-foreground-subtle">Signed in as</div>
+                      <div className="mt-0.5 truncate text-[13px] font-semibold text-foreground-default">
+                        {props.userName}
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-[#e3e3e7]" />
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center px-4 py-2.5 text-left text-[13px] text-foreground-default hover:bg-[#f2f2f5]"
+                      onClick={() => {
+                        window.location.href = "/api/auth/signout"
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <Link className="sr-only" href="/api/auth/signout">
                 Sign out
